@@ -876,6 +876,40 @@ djvu_document_text_get_text_layout (PpsDocumentText *document_text,
 	return result;
 }
 
+static gboolean
+djvu_document_text_get_text_layout (PpsDocumentText *document_text,
+                                    PpsPage *page,
+                                    PpsRectangle **areas,
+                                    guint *n_areas)
+{
+	DjvuDocument *djvu_document = DJVU_DOCUMENT (document_text);
+	miniexp_t page_text;
+	gboolean result = FALSE;
+	gdouble height, dpi;
+
+	g_rw_lock_reader_lock (&djvu_document->rwlock);
+
+	while ((page_text = ddjvu_document_get_pagetext (djvu_document->d_document,
+	                                                 page->index,
+	                                                 "char")) == miniexp_dummy)
+		djvu_handle_events (djvu_document, TRUE, NULL);
+
+	if (djvu_pagetext_usable (page_text)) {
+		DjvuTextPage *tpage = djvu_text_page_new (page_text);
+
+		document_get_page_size (djvu_document, page->index, NULL, &height, &dpi);
+		result = djvu_text_page_get_text_layout (tpage, height, dpi, areas, n_areas);
+		djvu_text_page_free (tpage);
+	}
+
+	if (page_text != miniexp_nil)
+		ddjvu_miniexp_release (djvu_document->d_document, page_text);
+
+	g_rw_lock_reader_unlock (&djvu_document->rwlock);
+
+	return result;
+}
+
 static void
 djvu_document_text_iface_init (PpsDocumentTextInterface *iface)
 {
