@@ -7,8 +7,9 @@ upstream splits almost every component across a `.rs` (or `.c`) file and a
 `.blp` file — the component is the **set** of files, and both halves collapse
 into one `lib/*.rb`.
 
-Upstream references are `git show origin/main:<path>`. Nothing below exists in
-the port yet except the application stub.
+Upstream references are `git show origin/main:<path>`. Present/absent below is
+against `lib/` as of this revision: 20 leaf components and the application
+exist; everything else is absent.
 
 ## Totals
 
@@ -19,15 +20,20 @@ the port yet except the application stub.
 | Shell Rust sources (`shell/src`) | 39 files, ~16 400 lines | — |
 | libview UI sources (`libview/*.c`) | 25 files | — |
 | Menu models (`menu … { }`) | 8 | 0 |
-| GSettings schemas / keys | 2 schemas (`org.gnome.Papers`, `.Default`), 27 keys | 0 |
+| GSettings schemas / keys | 2 schemas (`org.gnome.Papers`, `.Default`), 27 keys | all 27, via `lib/settings.rb` (JSON-backed) |
 | GResource manifests | 3 (`shell`, `previewer`, `libview`) | — |
 | `po/` catalogue | 102 languages, ~476 messages | 0 |
 | `help/` (Mallard user guide) | 60 C pages, 36 languages | 0 |
-| `lib/*.rb` files | — | 3 (`papers.rb`, `papers/application.rb`, `papers/rb/version.rb`) |
+| `lib/*.rb` files | — | 23 (21 components + `papers.rb` + `papers/rb/version.rb`) |
 
-The port is a stub: `lib/papers/application.rb` is one `Adw.StatusPage` saying
-the port has not been written. Every row below that is marked absent is
-genuinely absent, not "partially there".
+What exists is the application shell plus the leaves that nothing else depends
+on: the settings store, the stylesheet, the context models, the two helper
+lookups, and the five self-contained widgets/dialogs (loader view, password
+view and dialog, progress message area, shortcuts dialog, colour swatch,
+thumbnail item, sidebar page base). What is absent is everything that needs a
+loaded document: the window, the document view, the sidebar pages, search, the
+properties and signature dialogs, and all of `libview`'s render path. A row
+marked absent is genuinely absent, not "partially there".
 
 ## Reading order
 
@@ -38,10 +44,15 @@ thumbnailer.
 
 ## 1 — Application
 
-### `shell/src/main.rs`, `shell/src/application.rs` → `lib/papers/application.rb` — present (stub)
+### `shell/src/main.rs`, `shell/src/application.rs` → `lib/papers/application.rb` — present
 
 Not a widget class, but it owns the app-level actions, the accelerators and the
-About dialog.
+About dialog. The port has the app id and flags, the application name and
+icon, the stylesheet install, five actions (`about`, `help`, `shortcuts`,
+`new`, `quit`), the nine accelerators, the main menu, the About dialog and a
+window carrying an `Adw.StatusPage` placeholder where the ViewStack belongs.
+Absent from it: `HANDLES_OPEN`/`HANDLES_COMMAND_LINE` and the eight
+command-line options, which need a document to open.
 
 | Item | × | Detail |
 |---|---:|---|
@@ -52,7 +63,7 @@ About dialog.
 | Command line | 1 | `--page-label`, `--page-index`, `--named-dest`, `--fullscreen`, `--presentation`, `--preview`, `--find`, `--version` (see `setup_command_line`) |
 | Help | 1 | `app.help` → `help:papers` via `Gtk.UriLauncher` |
 
-### `data/org.gnome.Papers.gschema.xml` → `lib/settings.rb` — absent
+### `data/org.gnome.Papers.gschema.xml` → `lib/settings.rb` — present
 
 27 keys over two schemas. `org.gnome.Papers`: `override-restrictions`,
 `document-directory`, `pictures-directory`, `page-cache-size`,
@@ -65,7 +76,7 @@ About dialog.
 `signature-last-placed-scale`. Bound directly from `pps-window.blp` and
 `pps-document-view.blp` as `Gio.Settings` objects with `changed::` handlers.
 
-### `shell/resources/papers.css`, `previewer/papers-previewer.css` → `lib/style.rb` — absent
+### `shell/resources/papers.css`, `previewer/papers-previewer.css` → `lib/style.rb` — present
 
 The stylesheet side of every CSS class the widgets apply (`zoom-overlay`,
 `box-circular`, `padded`, `reference-bar`, `annotation-content`,
@@ -101,7 +112,7 @@ modified check on close, presentation start/stop, metadata init, night mode
 (`Adw.StyleManager`), file-dialog folder restore per `UserDirectory`, external
 URI launch.
 
-### `shell/src/loader_view.rs` + `pps-loader-view.blp` → `lib/loader_view.rb` — absent
+### `shell/src/loader_view.rs` + `pps-loader-view.blp` → `lib/loader_view.rb` — present
 
 Loading state: `Adw.Bin` → `Adw.ToolbarView` + `Adw.HeaderBar` +
 `Adw.WindowTitle`, `Adw.StatusPage` ("Loading Document", description bound to
@@ -109,7 +120,7 @@ Loading state: `Adw.Bin` → `Adw.ToolbarView` + `Adw.HeaderBar` +
 `ProgressBar` pages, and a `Button` (`pill`) "C_ancel" → `cancel_clicked`,
 emitting the `cancel` signal the window listens for.
 
-### `shell/src/password_view.rs` + `pps-password-view.blp` → `lib/password_view.rb` — absent
+### `shell/src/password_view.rs` + `pps-password-view.blp` → `lib/password_view.rb` — present
 
 Locked state: `Adw.StatusPage` "Password Required", icon
 `dialog-password-symbolic`, `Button` (`pill`) "_Unlock Document" →
@@ -117,7 +128,7 @@ Locked state: `Adw.StatusPage` "Password Required", icon
 `password.preference` stateful action. Signals `unlock(password, flags)` and
 `cancelled`. Talks to `lib/keyring.rb`.
 
-### `shell/resources/pps-password-dialog.blp` (built from `password_view.rs`) → `lib/password_dialog.rb` — absent
+### `shell/resources/pps-password-dialog.blp` (built from `password_view.rs`) → `lib/password_dialog.rb` — present
 
 `Adw.AlertDialog` "Password Required", responses `cancelled`/`unlock`
 (`unlock` disabled until input). `PasswordEntry password_entry` (peek icon,
@@ -131,7 +142,7 @@ Secret Service lookup/save/delete of document passwords (label
 `org.gnome.Papers.Document`, attributes `type`/`uri`). Not a widget, but the
 password flow is wrong without it.
 
-### `shell/src/file_monitor.rs` → `lib/file_monitor.rb` — absent
+### `shell/src/file_monitor.rs` → `lib/file_monitor.rb` — present
 
 `GObject` wrapper over `Gio.FileMonitor` emitting `changed`; drives the
 "document changed on disk" reload banner.
@@ -251,7 +262,7 @@ Seven `Popover`s, each a color palette or a stroke-size picker:
 (chat-bubble-text-symbolic), `attachments` (mail-attachment-symbolic), `layers`
 (view-paged-symbolic). Signal `navigated-to-view`.
 
-### `shell/src/sidebar_page.rs` → `lib/sidebar_page.rb` — absent
+### `shell/src/sidebar_page.rs` → `lib/sidebar_page.rb` — present
 
 Abstract `Adw.Bin` subclass with `document-model` and `sidebar` construct-only
 properties, plus a vfunc class struct (`supports_document`). Every sidebar page
@@ -260,7 +271,7 @@ below derives from it, so it has to exist first.
 | Upstream | → | Kind | Present |
 |---|---|---|---|
 | `shell/src/sidebar_thumbnails.rs` + `pps-sidebar-thumbnails.blp` | `lib/sidebar_thumbnails.rb` | sidebar page | absent |
-| `shell/src/thumbnail_item.rs` | `lib/thumbnail_item.rb` | list item model | absent |
+| `shell/src/thumbnail_item.rs` | `lib/thumbnail_item.rb` | list item model | **present** |
 | `shell/src/sidebar_links.rs` + `pps-sidebar-links.blp` | `lib/sidebar_links.rb` | sidebar page | absent |
 | `shell/src/sidebar_annotations.rs` + `pps-sidebar-annotations.blp` | `lib/sidebar_annotations.rb` | sidebar page | absent |
 | `shell/src/sidebar_annotations_row.rs` + `pps-sidebar-annotations-row.blp` | `lib/sidebar_annotations_row.rb` | list row | absent |
@@ -326,7 +337,7 @@ placeholder "Search in document", `activate`, `next-match`, `previous-match`,
 | Upstream | → | Kind | Present |
 |---|---|---|---|
 | `shell/src/page_selector.rs` + `shell/resources/pps-page-selector.blp` | `lib/page_selector.rb` | widget | absent |
-| `shell/src/progress_message_area.rs` + `pps-progress-message-area.blp` | `lib/progress_message_area.rb` | message area | absent |
+| `shell/src/progress_message_area.rs` + `pps-progress-message-area.blp` | `lib/progress_message_area.rb` | message area | **present** |
 | `shell/src/properties_window.rs` + `pps-properties-window.blp` | `lib/properties_window.rb` | dialog | absent |
 | `shell/src/properties_general.rs` (no `.blp` — built in code) | `lib/properties_general.rb` | dialog page | absent |
 | `shell/src/properties_fonts.rs` + `pps-properties-fonts.blp` | `lib/properties_fonts.rb` | dialog page | absent |
@@ -339,8 +350,8 @@ placeholder "Search in document", `activate`, `next-match`, `previous-match`,
 | `shell/src/signature_manager.rs` | `lib/signature_manager.rb` | store | absent |
 | `shell/src/signature_image_processing.rs` | `lib/signature_image_processing.rb` | helper | absent |
 | `shell/src/ink_transformation.rs` | `lib/ink_transformation.rb` | helper | absent |
-| `shell/src/simple_color_swatch.rs` | `lib/simple_color_swatch.rb` | widget | absent |
-| `shell/resources/pps-shortcuts-dialog.blp` (no backing source) | `lib/shortcuts_dialog.rb` | dialog | absent |
+| `shell/src/simple_color_swatch.rs` | `lib/simple_color_swatch.rb` | widget | **present** |
+| `shell/resources/pps-shortcuts-dialog.blp` (no backing source) | `lib/shortcuts_dialog.rb` | dialog | **present** |
 
 Details:
 
@@ -426,9 +437,9 @@ two `Widget` subclasses.
 | `libview/factory/pps-form-widget-factory.c` | `lib/form_widget_factory.rb` | factory | absent |
 | `libview/factory/pps-annotation-widget-factory.c` | `lib/annotation_widget_factory.rb` | factory | absent |
 | `libview/pps-print-operation.c` | `lib/print_operation.rb` | print dialog | absent |
-| `libview/pps-view-cursor.c` | `lib/view_cursor.rb` | helper | absent |
-| `libview/pps-colors.c` | `lib/colors.rb` | helper | absent |
-| `libview/pps-css-utils.c` | `lib/css_utils.rb` | helper | absent |
+| `libview/pps-view-cursor.c` | `lib/view_cursor.rb` | helper | **present** |
+| `libview/pps-colors.c` | `lib/view_colors.rb` | helper | **present** |
+| `libview/pps-css-utils.c` | `lib/css_utils.rb` | helper | **present** |
 | `libview/pps-page-cache.c` | `lib/page_cache.rb` | cache | absent |
 | `libview/pps-pixbuf-cache.c` | `lib/pixbuf_cache.rb` | cache | absent |
 | `libview/pps-job.c`, `pps-jobs.c`, `pps-job-scheduler.c` | `lib/job.rb`, `lib/jobs.rb`, `lib/job_scheduler.rb` | async jobs | absent |
@@ -436,6 +447,9 @@ two `Widget` subclasses.
 
 Details:
 
+- **Naming**: `libview/pps-colors.c` ports to `lib/view_colors.rb`, not
+  `lib/colors.rb` — the class is `ViewColors`, since the file holds the view's
+  own colour lookups rather than a general colour helper.
 - **`PpsView`** (`pps-view.blp`): `Widget` subclass, CSS `content-view`,
   `has-tooltip`, focusable, and **12 event controllers / gestures** —
   `GestureClick` (button 0, press/release), `EventControllerMotion`,
@@ -468,23 +482,24 @@ Details:
   and 3 `Gtk.CheckButton`s (auto-rotate, shrink to fit, print as image), and an
   `Adw.AlertDialog` for print errors.
 
-### Contexts and models (`libview/context`) — all absent
+### Contexts and models (`libview/context`)
 
 One upstream file each, bound directly from the blueprints, so they are part of
-the component surface rather than back-end detail:
+the component surface rather than back-end detail. Six of the ten are ported;
+the four that are absent are the ones that need a loaded document.
 
-| Upstream | → |
-|---|---|
-| `libview/context/pps-document-model.c` | `lib/document_model.rb` |
-| `libview/context/pps-annotation-model.c` | `lib/annotation_model.rb` |
-| `libview/context/pps-annotations-context.c` | `lib/annotations_context.rb` |
-| `libview/context/pps-attachment-context.c` | `lib/attachment_context.rb` |
-| `libview/context/pps-history.c` | `lib/history.rb` |
-| `libview/context/pps-metadata.c` | `lib/metadata.rb` |
-| `libview/context/pps-search-context.c` | `lib/search_context.rb` |
-| `libview/context/pps-search-result.c` | `lib/search_result.rb` |
-| `libview/context/pps-undo-context.c` | `lib/undo_context.rb` |
-| `libview/context/pps-undo-handler.c` | `lib/undo_handler.rb` |
+| Upstream | → | Kind | Present |
+|---|---|---|---|
+| `libview/context/pps-document-model.c` | `lib/document_model.rb` | model | **present** |
+| `libview/context/pps-annotation-model.c` | `lib/annotation_model.rb` | model | **present** |
+| `libview/context/pps-annotations-context.c` | `lib/annotations_context.rb` | context | absent |
+| `libview/context/pps-attachment-context.c` | `lib/attachment_context.rb` | context | absent |
+| `libview/context/pps-history.c` | `lib/history.rb` | model | absent |
+| `libview/context/pps-metadata.c` | `lib/metadata.rb` | store | **present** |
+| `libview/context/pps-search-context.c` | `lib/search_context.rb` | context | absent |
+| `libview/context/pps-search-result.c` | `lib/search_result.rb` | model | **present** |
+| `libview/context/pps-undo-context.c` | `lib/undo_context.rb` | context | **present** |
+| `libview/context/pps-undo-handler.c` | `lib/undo_handler.rb` | interface | **present** |
 
 ## 8 — Previewer and thumbnailer (separate binaries)
 
