@@ -1,3 +1,27 @@
 # frozen_string_literal: true
 
+# The ported components, in dependency order: the helpers and the models
+# first, then the widgets built on them.
+require_relative "settings"
+require_relative "style"
+require_relative "view_colors"
+require_relative "css_utils"
+require_relative "view_cursor"
+require_relative "annotation_model"
+require_relative "document_model"
+require_relative "metadata"
+require_relative "search_result"
+require_relative "thumbnail_item"
+require_relative "undo_handler"
+require_relative "undo_context"
+require_relative "file_monitor"
+require_relative "sidebar_page"
+require_relative "simple_color_swatch"
+require_relative "progress_message_area"
+require_relative "loader_view"
+require_relative "password_dialog"
+require_relative "password_view"
+require_relative "shortcuts_dialog"
+
+require_relative "papers/rb/version"
 require_relative "papers/application"
