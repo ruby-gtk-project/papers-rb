@@ -109,6 +109,17 @@ Gem::Specification.new do |spec|
   #       Development dependencies that require strictly newer Ruby versions should be in a "gemfile",
   #       and preferably a modular one (see gemfiles/modular/*.gemfile).
 
+  # Toolkit
+  spec.add_dependency("glib2", "~> 4.3")                                            # ruby >= 2.5
+  spec.add_dependency("gtk4", "~> 4.3")                                             # ruby >= 2.5
+  spec.add_dependency("adwaita", "~> 4.3")                                          # ruby >= 2.5
+  # Spell checking (shell/* uses this for the find box and form fields)
+  spec.add_dependency("libspelling", "~> 1.0")                                      # ruby >= 3.0
+  # Querying the binary XML blobs AppStream metadata is compiled into
+  spec.add_dependency("libxmlb", "~> 1.0")                                          # ruby >= 3.0
+  # Keyring storage for document passwords (shell/src/keyring.rs)
+  spec.add_dependency("libsecret", "~> 4.4")                                          # ruby >= 2.5
+
   # Dev, Test, & Release Tasks
   spec.add_development_dependency("kettle-dev", "~> 3.1", ">= 3.1.26")             # ruby >= 3.4
 
