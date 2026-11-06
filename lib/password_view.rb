@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'adwaita'
+require_relative 'keyring'
 require_relative 'password_dialog'
 
 # PasswordView is the page the window shows when the document it opened is
@@ -15,8 +16,9 @@ require_relative 'password_dialog'
 # "cancelled".
 #
 # can_save_password mirrors upstream's with-keyring build feature. Without a
-# keyring there is nowhere to keep a password, so the choice is hidden and the
-# preference reported is always Never.
+# reachable secret service (see Keyring.available?, ported from
+# shell/src/keyring.rs) there is nowhere to keep a password, so the choice is
+# hidden and the preference reported is always Never.
 #
 class PasswordView < Adwaita::Bin
   type_register
@@ -53,7 +55,7 @@ class PasswordView < Adwaita::Bin
 
   attr_reader :filename
 
-  def initialize(can_save_password: false)
+  def initialize(can_save_password: Keyring.available?)
     super()
     @filename = ''
     @can_save_password = can_save_password

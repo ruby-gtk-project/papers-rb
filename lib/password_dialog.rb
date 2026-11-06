@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'adwaita'
+require_relative 'keyring'
 
 # PasswordDialog asks for a locked document's password.
 #
@@ -25,10 +26,11 @@ class PasswordDialog
 
   # error: the previous password was wrong, so the entry is marked and the
   #   "Invalid password" label shown.
-  # can_save_password: whether there is a keyring to save the password in. The
-  #   choice between forgetting it and keeping it is hidden when there is not,
-  #   exactly as upstream hides it in a build without keyring support.
-  def initialize(error: false, can_save_password: false)
+  # can_save_password: whether there is a keyring to save the password in (see
+  #   Keyring.available?). The choice between forgetting it and keeping it is
+  #   hidden when there is not, exactly as upstream hides it in a build
+  #   without keyring support.
+  def initialize(error: false, can_save_password: Keyring.available?)
     @error = error
     @can_save_password = can_save_password
   end
