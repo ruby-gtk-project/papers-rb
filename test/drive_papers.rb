@@ -746,4 +746,36 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
       !empty.license_box.visible? && !empty.uri_box.visible? && !empty.web_statement_box.visible?
     end
   end
+
+  d.step('PageSelector tracks the model, labels pages and resolves typed page numbers') do
+    selector = PageSelector.new.build
+    model = DocumentModel.new
+    selector.model = model
+
+    document = Object.new
+    def document.n_pages = 12
+    def document.find_page_by_label(label) = label.to_i - 1
+
+    d.check('starts insensitive with no document') { !selector.sensitive? }
+
+    model.document = document
+    d.check('becomes sensitive once a document with pages is set') { selector.sensitive? }
+
+    model.page = 4
+    d.check('the entry shows the 1-based page number') { selector.send(:entry).text == '5' }
+    d.check('the label shows the page count') { selector.send(:label).text == 'of 12' }
+
+    received = nil
+    selector.signal_connect('activate_page') { |_w, page| received = page }
+    selector.send(:entry).text = '9'
+    selector.send(:activated)
+    d.check('activating the entry resolves the label through the document and moves the model') do
+      model.page == 8 && received == 8
+    end
+
+    selector.send(:page_scrolled, 1.0)
+    d.check('scrolling down advances one page') { model.page == 9 }
+    selector.send(:page_scrolled, -1.0)
+    d.check('scrolling up retreats one page') { model.page == 8 }
+  end
 end
