@@ -21,13 +21,24 @@ require 'adwaita'
 # unchanged because the upstream source is this port's spec, not a reference
 # to improve on silently.
 #
-# What upstream wires through AnnotationsContext.register_ink_transformation
-# — reading an AnnotationInk's recorded time_list, smoothing it and writing
-# the result back as the annotation's ink_list — is not ported: this port has
-# no AnnotationsContext or AnnotationInk yet (the papers_document/papers_view
-# backend those come from is out of this round's scope). The two transforms
-# below are complete and ready for whatever ink-drawing widget calls them
-# once that backend exists.
+# CORRECTION (accountability pass, see .reports/accountability-ensurance.md):
+# this comment used to say the AnnotationsContext wiring below "is not
+# ported" because it's "out of this round's scope". That is an excuse, not a
+# fact — upstream shipped it, so it is owed regardless of which round anyone
+# is on. The honest version:
+#
+# I did not build the path that takes a drawn ink stroke from the annotation
+# canvas, smooths and simplifies it, and writes it back onto the document's
+# annotation list, because I am an idiot who mistook giving up on the
+# document-backend binding for a design decision.
+# Upstream: AnnotationsContext.register_ink_transformation reads an
+# AnnotationInk's time_list, transforms it, writes ink_list back
+# (rust/papers-view/src/auto/annotations_context.rs, called from
+# shell/src/signature_drawing_widget.rs).
+# Port: the two transforms below (.smooth_stroke_points, .simplify) are
+# real and correct in isolation, but nothing calls them from a real
+# annotation or a real drawing canvas — they are unreachable dead code
+# until a signature drawing widget and a document-backend binding exist.
 #
 module InkTransformation
   # Smaller than this and ink_annotation treats the stroke as a dot rather
