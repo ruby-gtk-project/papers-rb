@@ -646,4 +646,71 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
       CssUtils.filter_class_chars('My Layer! (1)') == 'MyLayer1'
     end
   end
+
+  d.step('SignatureManager stores, soft-deletes and permanently removes a signature') do
+    Dir.mktmpdir.then do |dir|
+      # GLib caches g_get_user_data_dir() at process start, so setting
+      # XDG_DATA_HOME this late would not change what SignatureManager sees;
+      # the class method itself is overridden instead, to a scratch
+      # directory, so this check never touches the real user data dir.
+      signatures_dir = File.join(dir, 'papers', 'signatures')
+      original_signatures_dir = SignatureManager.method(:signatures_dir)
+      SignatureManager.define_singleton_method(:signatures_dir) { signatures_dir }
+
+      manager = SignatureManager.new
+      pixbuf = GdkPixbuf::Pixbuf.new(colorspace: :rgb, has_alpha: true, bits_per_sample: 8, width: 4, height: 4)
+      pixbuf.fill!(0x000000ff)
+      id = manager.add_signature('Test', pixbuf)
+      d.check('the new signature is listed') { manager.list_signatures.any? { |s| s['id'] == id } }
+      d.check('its pixbuf round-trips from disk') { !manager.get_signature_pixbuf(id).nil? }
+      manager.mark_for_deletion(id)
+      d.check('a soft-deleted signature drops out of the list') { manager.list_signatures.none? { |s| s['id'] == id } }
+      d.check('but its record is still retrievable') { !manager.get_signature(id).nil? }
+      manager.restore_from_deletion(id)
+      d.check('restoring brings it back') { manager.list_signatures.any? { |s| s['id'] == id } }
+      manager.permanently_delete(id)
+      d.check('a permanent delete removes the record entirely') { manager.get_signature(id).nil? }
+
+      # Cancels the metadata file watch before `manager` goes out of scope:
+      # otherwise the underlying GFileMonitor (kept alive by the default main
+      # context, independent of Ruby's GC) can fire a "changes-done-hint"
+      # after the Ruby object is collected and call back into it.
+      manager.instance_variable_get(:@file_monitor)&.cancel
+      SignatureManager.define_singleton_method(:signatures_dir, original_signatures_dir)
+    end
+  end
+
+  d.step('InkTransformation smooths and simplifies a stroke, matching upstream\'s shapes') do
+    d.check('fewer than two points pass through unchanged') do
+      InkTransformation.smooth_stroke_points([[1, 2]]) == [[1, 2]]
+    end
+    d.check('a smoothed stroke keeps its endpoints fixed') do
+      points = [[0, 0], [1, 1], [2, 0], [3, 1], [4, 0]]
+      smoothed = InkTransformation.smooth_stroke_points(points)
+      smoothed.first == points.first && smoothed.last == points.last
+    end
+    d.check('simplify drops a point that lies on the line between its neighbours') do
+      InkTransformation.simplify([[0, 0], [1, 0], [2, 0]], 0.5) == [[0, 0], [2, 0]]
+    end
+    d.check('simplify keeps a point that strays past epsilon') do
+      InkTransformation.simplify([[0, 0], [1, 5], [2, 0]], 0.5).include?([1, 5])
+    end
+  end
+
+  d.step('PropertiesLicense shows and hides its rows by what the document license has') do
+    license = Struct.new(:text, :uri, :web_statement)
+    full = PropertiesLicense.new.tap(&:build)
+    full.document_license = license.new('Terms', 'https://example.org/license', nil)
+    d.check('a present license text shows its row') { full.license_box.visible? }
+    d.check('a present uri shows its row, linked') do
+      full.uri_box.visible? && full.uri_label.label.include?('href="https://example.org/license"')
+    end
+    d.check('an absent web statement hides its row') { !full.web_statement_box.visible? }
+
+    empty = PropertiesLicense.new.tap(&:build)
+    empty.document_license = license.new(nil, nil, nil)
+    d.check('a license with nothing set hides every row') do
+      !empty.license_box.visible? && !empty.uri_box.visible? && !empty.web_statement_box.visible?
+    end
+  end
 end
