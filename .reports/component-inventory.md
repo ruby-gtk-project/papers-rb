@@ -1,156 +1,166 @@
-# Component inventory — papers-rb vs. upstream (origin/main)
+# Papers Ruby port — upstream component inventory
 
-Opening survey of the `ruby` fork, built with the `component-identification`
-skill's method. Upstream is Rust/GTK4/Libadwaita (`gnome.org/Papers`, the
-Evince successor), with widget trees declared in `.blp` and backed by a `.rs`
-class in `shell/src/` (app layer), `previewer/` (standalone previewer binary)
-or `libview/` (the reusable document-view widgets, no app chrome). `libdocument/`
-is the non-UI backend (PDF/DjVu/TIFF/comics parsing) and is out of scope for a
-widget inventory — it has no user-facing component.
+Surveyed against `origin/main` (upstream Rust/GTK4 "Papers" document viewer,
+née Evince) on 2026-11-07. This is a survey only: no app code was written for
+this report. Scope is every user-facing component — windows, dialogs, pages,
+rows, menus, keyboard shortcuts, settings, empty/error states — plus the
+`.blp` templates, the GSettings schema, the GResource manifests and the `po/`
+catalogue that back them.
 
-Columns: **upstream file(s)** the component is built from, the **lib/\*.rb**
-path it should become (house style: one port file per upstream unit), **kind**
-(window / dialog / page / sidebar-page / row / widget / menu / schema /
-catalog / shortcuts / action-set), and whether `lib/` on `ruby` already has it.
+Upstream is organized as:
+- `shell/` — the GTK4 application (`src/*.rs` + `resources/*.blp`), the unit
+  that matters most for this port.
+- `libview/` — the `PpsView`/`PpsViewPresentation` widgets (C-ABI GObject
+  library, exposed to Rust via the `rust/papers-view` GIR bindings).
+- `libdocument/` — the document-backend library (`rust/papers-document`).
+- `previewer/` — a separate, small C GTK3→4 standalone print-preview binary.
+- `thumbnailer/` — a separate CLI thumbnailer binary (no UI).
+- `rust/papers-{document,view}/src/auto/*.rs` — GIR-generated bindings, not
+  hand-written components; they are the equivalent of what a Ruby port would
+  reach through `gir_ffi`/typelib introspection directly, not port file-by-file.
 
-## Application shell
+## Legend
 
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+`kind`: `window`, `dialog`, `page` (sidebar/properties page), `row`, `widget`
+(composite/custom widget), `model`/`service` (non-widget support class),
+`app` (application class/actions/accelerators), `standalone-app` (separate
+binary), `data` (schema/resource manifest), `catalogue` (po/).
+
+---
+
+## 1. Application shell (`shell/src/`, `shell/resources/`)
+
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `shell/src/application.rs` | `lib/papers/application.rb` | application class (actions: `app.new`, `app.quit`, `app.help`, `about`) | Yes |
-| `shell/src/main.rs` | `exe/papers` | entry point | Yes |
-| `shell/src/window.rs`, `shell/resources/pps-window.blp` | `lib/window.rb` | main window (`Adw.ApplicationWindow`; actions `win.close`, `win.fullscreen`, `win.night-mode`, `win.open`, `win.presentation`, `win.escape`; header bar, toolbar view, menu) | **No** |
-| `shell/src/deps.rs` | — | build-time dependency shim, not a component | N/A |
-| `shell/src/file_monitor.rs` | `lib/file_monitor.rb` | file-change watcher (behaviour, not a widget) | Yes |
-| `shell/src/keyring.rs` | `lib/keyring.rb` | libsecret-backed cert/key storage (behaviour) | **No** |
-| `data/org.gnome.Papers.gschema.xml` | `lib/settings.rb` | GSettings schema (3 schemas: `org.gnome.Papers`, `.Default`, `.Previewer`) | Partial — `lib/settings.rb` exists; verify it covers all 3 schemas incl. `Previewer` |
-| `shell/resources/papers.gresource.xml.in`, `shell/resources/meson.build` | — | GResource manifest (lists every `.blp`→`.ui` + `papers.css` compiled in) | N/A (Ruby port has no `.ui`/GResource by house style) |
-| `shell/resources/papers.css` | `lib/style.rb` (+ `lib/css_utils.rb`, `lib/view_colors.rb`) | app stylesheet / CSS-class helpers | Yes (helpers) — confirm class coverage against `papers.css` |
-| `po/*.po`, `po/POTFILES.in`, `po/LINGUAS` | — | translation catalogue (104 locales) | Out of scope here — see `translation-parity` skill |
+| `shell/src/main.rs` | `lib/papers.rb` (entry point) | app | yes — `lib/papers.rb`, `lib/papers/application.rb` exist but need checking against upstream's actual startup sequence |
+| `shell/src/application.rs` (app actions, accelerators, About, command-line handling) | `lib/papers/application.rb` | app | partial — file exists; needs comparison of actions/accelerators, not yet done component-by-component |
+| `shell/src/window.rs` + `shell/resources/pps-window.blp` | `lib/window.rb` | window | **missing** — no `lib/window.rb`. This is the main `AdwApplicationWindow`: header bar, main menu, sidebar/document split view, toolbar, search toggle. The single largest gap in the port. |
+| `shell/src/document_view.rs` + `shell/src/document_view/{actions,enums,io,print,signals}.rs` + `shell/resources/pps-document-view.blp` | `lib/document_view.rb` | widget | **missing** — the central document pane (view + page selector + annotation toolbar + print/export actions). No corresponding `lib/` file at all. |
+| `shell/src/loader_view.rs` + `shell/resources/pps-loader-view.blp` | `lib/loader_view.rb` | widget (loading/empty state) | yes — `lib/loader_view.rb` exists |
+| `shell/src/password_view.rs` + `shell/resources/pps-password-view.blp` | `lib/password_view.rb` | widget (error/auth state) | yes — `lib/password_view.rb` exists |
+| `shell/resources/pps-password-dialog.blp` (no standalone `.rs`; built from `password_view.rs`/`window.rs`) | `lib/password_dialog.rb` | dialog | yes — `lib/password_dialog.rb` exists |
+| `shell/src/progress_message_area.rs` + `shell/resources/pps-progress-message-area.blp` | `lib/progress_message_area.rb` | widget (status/error banner) | yes — `lib/progress_message_area.rb` exists |
+| `shell/resources/pps-shortcuts-dialog.blp` (no `.rs`; built via `GtkBuilder` from `window.rs`) | `lib/shortcuts_dialog.rb` | dialog | yes — `lib/shortcuts_dialog.rb` exists |
+| `shell/src/file_monitor.rs` | `lib/file_monitor.rb` | service (reload-on-change) | yes — `lib/file_monitor.rb` exists |
+| `shell/src/keyring.rs` | `lib/keyring.rb` | service (saved passwords) | yes — `lib/keyring.rb` exists |
 
-## Document view (the central page)
+## 2. Find / search (`shell/src/`)
 
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `shell/src/document_view.rs`, `document_view/{actions,enums,io,print,signals}.rs`, `shell/resources/pps-document-view.blp` | `lib/document_view.rb` (+ split per house style if large) | page — the loaded-document view (toolbar, view+sidebar split, actions, print, I/O) | **No** |
-| `shell/src/loader_view.rs`, `shell/resources/pps-loader-view.blp` | `lib/loader_view.rb` | page — loading/empty/error state shown before a document is ready | Yes |
-| `shell/src/password_view.rs`, `shell/resources/pps-password-view.blp` | `lib/password_view.rb` | page — "document is encrypted" state | Yes |
-| `shell/src/password_view.rs` (`PasswordDialog` struct), `shell/resources/pps-password-dialog.blp` | `lib/password_dialog.rb` | dialog — password prompt (`Adw.AlertDialog`) | Yes |
-| `shell/src/progress_message_area.rs`, `shell/resources/pps-progress-message-area.blp` | `lib/progress_message_area.rb` | widget — inline progress/error banner | Yes |
-| `shell/src/find_sidebar.rs`, `shell/resources/pps-find-sidebar.blp` | `lib/find_sidebar.rb` | sidebar page — search results list | **No** |
-| `shell/src/search_box.rs`, `shell/resources/pps-search-box.blp` | `lib/search_box.rb` | widget — the find entry in the header bar | **No** |
+| `shell/src/find_sidebar.rs` + `shell/resources/pps-find-sidebar.blp` | `lib/find_sidebar.rb` | page | **missing** |
+| `shell/src/search_box.rs` + `shell/resources/pps-search-box.blp` | `lib/search_box.rb` | widget (headerbar search entry) | **missing** |
+| (search result data, not UI) `rust/papers-view/src/auto/search_result.rs` | `lib/search_result.rb` | model | yes — exists, but is the data wrapper, not the sidebar UI above |
+| (search context, not UI) `rust/papers-view/src/auto/search_context.rs` | — | model | not yet surveyed for a `lib/` equivalent |
 
-## Sidebar and its pages
+## 3. Sidebar (`shell/src/sidebar*.rs`)
 
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `shell/src/sidebar.rs`, `shell/resources/pps-sidebar.blp` | `lib/sidebar.rb` | widget — the sidebar container (`Adw.ViewSwitcher`/stack of pages) | **No** |
-| `shell/src/sidebar_page.rs` | `lib/sidebar_page.rb` | base class / interface each sidebar page implements | Yes |
-| `shell/src/sidebar_thumbnails.rs` | `lib/sidebar_thumbnails.rb` | sidebar page — page thumbnails | **No** |
-| `shell/src/thumbnail_item.rs` | `lib/thumbnail_item.rb` | row — one thumbnail list-item model/widget | Yes |
-| `shell/src/sidebar_links.rs`, `shell/resources/pps-sidebar-links.blp` | `lib/sidebar_links.rb` | sidebar page — table of contents / outline tree | **No** |
-| `shell/src/sidebar_attachments.rs`, `shell/resources/pps-sidebar-attachments.blp` | `lib/sidebar_attachments.rb` | sidebar page — file attachments list | **No** |
-| `shell/src/sidebar_layers.rs`, `shell/resources/pps-sidebar-layers.blp` | `lib/sidebar_layers.rb` | sidebar page — optional-content-group (layers) tree | **No** |
-| `shell/src/sidebar_annotations.rs`, `shell/resources/pps-sidebar-annotations.blp` | `lib/sidebar_annotations.rb` | sidebar page — annotations list | **No** |
-| `shell/src/sidebar_annotations_row.rs`, `shell/resources/pps-sidebar-annotations-row.blp` | `lib/sidebar_annotations_row.rb` | row — one annotation entry in that list | **No** |
+| `shell/src/sidebar.rs` + `shell/resources/pps-sidebar.blp` | `lib/sidebar.rb` | widget (the `AdwViewSwitcher`/stack container itself) | **missing** |
+| `shell/src/sidebar_page.rs` (shared trait/base behaviour for sidebar pages) | `lib/sidebar_page.rb` | model/mixin | yes — `lib/sidebar_page.rb` exists |
+| `shell/src/sidebar_thumbnails.rs` + `shell/resources/pps-sidebar-thumbnails.blp` | `lib/sidebar_thumbnails.rb` | page | **missing** (its row model `lib/thumbnail_item.rb` exists, but the page/list widget itself does not) |
+| `shell/src/thumbnail_item.rs` | `lib/thumbnail_item.rb` | row/item model | yes — exists |
+| `shell/src/sidebar_links.rs` + `shell/resources/pps-sidebar-links.blp` | `lib/sidebar_links.rb` | page (document outline/TOC tree) | **missing** |
+| `shell/src/sidebar_attachments.rs` + `shell/resources/pps-sidebar-attachments.blp` | `lib/sidebar_attachments.rb` | page | **missing** |
+| `shell/src/sidebar_layers.rs` + `shell/resources/pps-sidebar-layers.blp` | `lib/sidebar_layers.rb` | page | **missing** |
+| `shell/src/sidebar_annotations.rs` + `shell/resources/pps-sidebar-annotations.blp` | `lib/sidebar_annotations.rb` | page | **missing** |
+| `shell/src/sidebar_annotations_row.rs` + `shell/resources/pps-sidebar-annotations-row.blp` | `lib/sidebar_annotations_row.rb` | row | **missing** |
 
-## Properties dialog
+## 4. Properties window (`shell/src/properties_*.rs`)
 
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `shell/src/properties_window.rs`, `shell/resources/pps-properties-window.blp` | `lib/properties_window.rb` | dialog — document properties (`Adw.PreferencesWindow`/dialog hosting the tabs below) | **No** |
-| `shell/src/properties_general.rs` (no standalone `.blp`; a page inside the window template) | `lib/properties_general.rb` | page — general metadata tab (title, author, dates, etc.) | **No** |
-| `shell/src/properties_fonts.rs`, `shell/resources/pps-properties-fonts.blp` | `lib/properties_fonts.rb` | page — fonts-used tab | **No** |
-| `shell/src/properties_license.rs`, `shell/resources/pps-properties-license.blp` | `lib/properties_license.rb` | page — document license tab | **No** |
-| `shell/src/properties_signatures.rs`, `shell/resources/pps-properties-signatures.blp` | `lib/properties_signatures.rb` | page — digital-signature validation tab | **No** |
+| `shell/src/properties_window.rs` + `shell/resources/pps-properties-window.blp` | `lib/properties_window.rb` | dialog | **missing** |
+| `shell/src/properties_general.rs` + `shell/resources/pps-properties-general.blp` (check: not listed among `.blp` scan — verify it's inlined in `pps-properties-window.blp`) | `lib/properties_general.rb` | page | **missing** |
+| `shell/src/properties_fonts.rs` + `shell/resources/pps-properties-fonts.blp` | `lib/properties_fonts.rb` | page | **missing** |
+| `shell/src/properties_license.rs` + `shell/resources/pps-properties-license.blp` | `lib/properties_license.rb` | page | **missing** |
+| `shell/src/properties_signatures.rs` + `shell/resources/pps-properties-signatures.blp` | `lib/properties_signatures.rb` | page | **missing** |
 
-## Annotations and signing
+Note: `properties_general.rs` exists upstream but no matching `pps-properties-general.blp` turned up in the `.blp` listing — needs a follow-up read of `properties_window.rs` to see whether the general tab is built inline or the filename differs.
 
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+## 5. Annotations & signatures (`shell/src/annotation*`, `*signature*`)
+
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `shell/src/annotation_properties_dialog.rs`, `shell/resources/pps-annotation-properties-dialog.blp` | `lib/annotation_properties_dialog.rb` | dialog — per-annotation color/author/icon editor | **No** |
-| `libview/context/pps-annotation-model.c` | `lib/annotation_model.rb` | model — annotation list model | Yes |
-| `shell/src/simple_color_swatch.rs` | `lib/simple_color_swatch.rb` | widget — one color swatch button | Yes |
-| `shell/src/signature_drawing_widget.rs`, `shell/resources/pps-signature-drawing-widget.blp` | `lib/signature_drawing_widget.rb` | widget — freehand signature canvas | **No** |
-| `shell/src/visual_signature_chooser.rs`, `shell/resources/pps-visual-signature-chooser.blp` | `lib/visual_signature_chooser.rb` | dialog — pick/draw/type/upload a signature image | **No** |
-| `shell/src/sign_manually_dialog.rs`, `shell/resources/pps-sign-manually-dialog.blp` | `lib/sign_manually_dialog.rb` | dialog — place a signature on the page before signing | **No** |
-| `shell/src/signature_manager.rs` | `lib/signature_manager.rb` | behaviour — PKCS#11/cert enumeration and signing flow | **No** |
-| `shell/src/signature_image_processing.rs` | `lib/signature_image_processing.rb` | behaviour — raster processing for drawn/uploaded signatures | **No** |
-| `shell/src/ink_transformation.rs` | `lib/ink_transformation.rb` | behaviour — stroke coordinate transforms for ink annotations | **No** |
+| `shell/src/annotation_properties_dialog.rs` + `shell/resources/pps-annotation-properties-dialog.blp` | `lib/annotation_properties_dialog.rb` | dialog | **missing** |
+| `rust/papers-view/src/auto/annotation_model.rs` (+ `annotations_context.rs`) | `lib/annotation_model.rb` | model | yes — `lib/annotation_model.rb` exists |
+| `shell/src/signature_drawing_widget.rs` + `shell/resources/pps-signature-drawing-widget.blp` | `lib/signature_drawing_widget.rb` | widget (draw-a-signature canvas) | **missing** |
+| `shell/src/sign_manually_dialog.rs` + `shell/resources/pps-sign-manually-dialog.blp` | `lib/sign_manually_dialog.rb` | dialog | **missing** |
+| `shell/src/visual_signature_chooser.rs` + `shell/resources/pps-visual-signature-chooser.blp` | `lib/visual_signature_chooser.rb` | widget/dialog step (pick where on the page to sign) | **missing** |
+| `shell/src/signature_image_processing.rs` | `lib/signature_image_processing.rb` | service (image processing for a drawn/uploaded signature) | yes — exists |
+| `shell/src/signature_manager.rs` | `lib/signature_manager.rb` | service (stores signature images + metadata) | **in progress, uncommitted** — `lib/signature_manager.rb` is present in the working tree but untracked (not yet committed to `ruby`) |
+| `shell/src/ink_transformation.rs` | `lib/ink_transformation.rb` | model/math helper (ink-stroke coordinate transforms, backs the drawing widget) | **missing** |
+| `shell/src/simple_color_swatch.rs` (+ no distinct `.blp` found; check it's inline in `visual_signature_chooser`/`sign_manually_dialog`) | `lib/simple_color_swatch.rb` | widget (small color-picker swatch) | yes — exists |
 
-## Shortcuts, undo, and other chrome
+## 6. Page navigation
 
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `shell/resources/pps-shortcuts-dialog.blp` (no dedicated `.rs`; built by `window.rs`) | `lib/shortcuts_dialog.rb` | dialog — `Gtk.ShortcutsWindow` | Yes |
-| `libview/context/pps-undo-context.c` | `lib/undo_context.rb` | model — undo/redo stack | Yes |
-| `libview/context/pps-undo-handler.c` | `lib/undo_handler.rb` | interface each undoable action implements | Yes |
-| `libview/context/pps-metadata.c` | `lib/metadata.rb` | per-document metadata store (zoom, page, sidebar state) | Yes |
-| `libview/context/pps-document-model.c` | `lib/document_model.rb` | model — current document/page/scale state | Yes |
-| `libview/context/pps-search-result.c` | `lib/search_result.rb` | model — one find-match result | Yes |
-| `libview/pps-view-cursor.c` | `lib/view_cursor.rb` | behaviour — cursor shape per interaction mode | Yes |
-| `libview/pps-css-utils.c` | `lib/css_utils.rb` | behaviour — CSS color/class helpers | Yes |
+| `shell/src/page_selector.rs` + `shell/resources/pps-page-selector.blp` | `lib/page_selector.rb` | widget (page-number spinbutton in the headerbar) | **missing** |
 
-## The document view widget itself (`libview/`)
+## 7. Core view widgets (`libview/`) — reached via bindings, not ported file-for-file
 
-These are the heaviest gap: the actual page-rendering widgets have no port
-file yet, even though several of their supporting models (above) do.
-
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `libview/pps-view.c`, `libview/pps-view.blp` | `lib/view.rb` | widget — the scrollable multi-page document canvas | **No** |
-| `libview/pps-view-page.c` | `lib/view_page.rb` | widget/row — one rendered page inside the view | **No** |
-| `libview/pps-view-presentation.c`, `libview/pps-view-presentation.blp` | `lib/view_presentation.rb` | widget — fullscreen presentation-mode view | **No** |
-| `libview/pps-annotation-layer.c`, `-ink.c`, `-objects.c` | `lib/annotation_layer.rb` (+ ink/objects) | widget — annotation overlay drawn on a page | **No** |
-| `libview/pps-annotation-overlay.c` | `lib/annotation_overlay.rb` | widget — per-page annotation event layer | **No** |
-| `libview/pps-annotation-window.c` | `lib/annotation_window.rb` | widget — popover shown when an annotation is activated | **No** |
-| `libview/pps-form-overlay.c` | `lib/form_overlay.rb` | widget — interactive form-field layer | **No** |
-| `libview/pps-overlay.c` | `lib/overlay.rb` | base widget the above overlays share | **No** |
-| `libview/pps-print-operation.c` | `lib/print_operation.rb` | behaviour — print dialog/job wiring | **No** |
-| `libview/factory/pps-annotation-widget-factory.c`, `pps-element-widget-factory.c`, `pps-form-widget-factory.c` | `lib/*_widget_factory.rb` | widget factories for `ListView`/overlay items | **No** |
-| `libview/context/pps-annotations-context.c`, `pps-attachment-context.c`, `pps-search-context.c`, `pps-history.c` | `lib/*.rb` (one each) | models — annotations/attachments/search/navigation-history state | **No** |
+| `libview/pps-view.blp` (template for `PpsView`, the page-rendering widget) | n/a — upstream C widget, reached through the `Papers::View` typelib/gem if one exists, not reimplemented | widget | not applicable unless the port hand-rolls page rendering — **check `lib/` for a hand-rolled view widget and flag it if found; none seen in the current `lib/` listing** |
+| `libview/pps-view-presentation.blp` (template for `PpsViewPresentation`, fullscreen presentation mode) | same as above | widget | not applicable / not found |
+| `rust/papers-view/src/auto/document_model.rs` | `lib/document_model.rb` | model | yes — `lib/document_model.rb` exists |
+| `rust/papers-view/src/auto/history.rs` | `lib/history.rb` | model | yes — exists |
+| `rust/papers-view/src/auto/undo_context.rs`, `undo_handler.rs` | `lib/undo_context.rb`, `lib/undo_handler.rb` | model | yes — both exist |
+| `rust/papers-view/src/auto/metadata.rs` | `lib/metadata.rb` | model | yes — exists |
+| view-state enums (`document_view/enums.rs`, cursor/colour state) | `lib/view_colors.rb`, `lib/view_cursor.rb` | model | yes — both exist |
+| `lib/style.rb`, `lib/css_utils.rb` | no single upstream file (cross-cutting CSS/style helpers used by several widgets above) | service | yes — exist, but cannot be scored for parity until the widgets that use them (window, document_view, sidebar pages) exist |
 
-## Previewer (second binary, `previewer/`)
+## 8. Settings & data
 
-Standalone print-preview app with its own window; the gemspec currently
-declares only one executable (`papers`), so this entire binary is unstarted.
-
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+| Upstream file | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `previewer/pps-previewer.c` | `lib/previewer/main.rb` (or new `exe/papers-previewer`) | entry point | **No** |
-| `previewer/pps-previewer-window.c`, `previewer/pps-previewer-window.blp` | `lib/previewer/window.rb` | window — print-preview chrome | **No** |
-| `previewer/pps-page-selector.c`, `previewer/pps-page-selector.blp` | `lib/previewer/page_selector.rb` | widget — page-range picker, also used standalone in `shell/resources/pps-page-selector.blp` | **No** |
-| `previewer/previewer.gresource.xml` | — | GResource manifest | N/A |
+| `data/org.gnome.Papers.gschema.xml` | `lib/settings.rb` | data/service | yes — `lib/settings.rb` exists; **not yet verified key-by-key against the schema** in this survey |
+| `data/org.gnome.Papers.desktop.in.in`, `org.gnome.Papers-previewer.desktop.in.in` | — | data | not yet ported/checked (desktop launcher metadata) |
+| `data/org.gnome.Papers.metainfo.xml.in.in` | — | data | not yet ported/checked (AppStream metadata — screenshots, release notes) |
+| `shell/resources/papers.gresource.xml.in` | — | data (GResource manifest listing every `.blp`-compiled `.ui`, icon, and CSS file the shell embeds) | n/a for a Ruby port (GResource bundling doesn't apply the same way), but it is the authoritative cross-check for "did I miss a resource" and should be re-read once the above widgets are built |
+| `libview/libview.gresource.xml`, `previewer/previewer.gresource.xml` | — | data | same as above, scoped to their own binaries |
 
-## Nautilus extension (`nautilus/`)
+## 9. Standalone binaries (lower priority — separate executables, not the main app)
 
-| Upstream file(s) | lib/*.rb | Kind | Exists |
+| Upstream file(s) | → `lib/*.rb` | kind | exists? |
 |---|---|---|---|
-| `nautilus/pps-nautilus-extension.c` | — | Nautilus properties-page extension (GObject module loaded by Files, not by the app) | **No** — likely out of scope for the Ruby app port; flag rather than silently build |
+| `previewer/pps-previewer.c`, `pps-previewer-window.{c,h}`, `pps-previewer-window.blp`, `pps-page-selector.{c,h}`, `pps-page-selector.blp` | none yet | standalone-app (print-preview window, separate binary from the main shell) | **missing entirely** — no `lib/` file maps to the previewer at all |
+| `thumbnailer/src/main.rs` | none yet | standalone-app (CLI thumbnail generator, no UI) | **missing entirely** |
 
-## Backend libraries (`libdocument/`) — not components
+## 10. Translation catalogue
 
-`libdocument/` (PDF/Poppler, DjVu, TIFF, comic-archive backends and the
-`pps-document*` model/interface classes) has no `.blp`/UI and produces no
-widget rows — it is the document-parsing core the view widgets above call
-into. It belongs in a separate, non-widget port inventory (document loading,
-rendering, text/forms/annotations data access), not this component survey.
+`po/POTFILES.in` lists every upstream source file with translatable strings;
+`po/LINGUAS` lists ~[see file] shipped languages. Full msgid-by-msgid
+translation parity is the job of the `translation-parity` skill, not this
+survey — noted here only so the catalogue isn't missed when scoping future
+units. Every widget above that is still missing also means its strings in
+`po/POTFILES.in` have no Ruby-side home yet.
 
-## Totals
+---
 
-- Upstream user-facing component units identified: **47** (app shell: 2 behaviour
-  helpers + 1 window; document-view area: 7; sidebar: 8; properties dialog: 5;
-  annotations/signing: 9; shortcuts/undo/chrome: 7 ported already; `libview`
-  rendering widgets: 11; previewer: 4; nautilus: 1).
-- Already present in `lib/` on `ruby`: **21** files, covering mostly the
-  model/behaviour layer (settings, document/annotation models, undo, metadata,
-  search result, thumbnail item, simple color swatch, progress area, loader
-  view, password view/dialog, shortcuts dialog, file monitor, style/CSS/cursor
-  helpers) plus the application class and sidebar-page base.
-- Entirely missing: the main **window**, the **document view** page and all of
-  its **sidebar pages** and **rows**, the full **properties dialog** (all four
-  tabs), the entire **signing/signature** flow (6 components), the **core
-  rendering widgets** in `libview/` (the view, view-page, presentation mode,
-  annotation/form overlays — 11 components with no port file at all), and the
-  **previewer** binary (4 components, no second executable declared yet).
-- This is a survey only; no `lib/*.rb` was written or changed as part of it.
+## Summary
+
+- **lib/ files that exist and map to a real upstream component or model**:
+  `annotation_model.rb`, `css_utils.rb`, `document_model.rb`, `file_monitor.rb`,
+  `history.rb`, `keyring.rb`, `loader_view.rb`, `metadata.rb`,
+  `papers.rb`/`papers/application.rb`, `password_dialog.rb`, `password_view.rb`,
+  `progress_message_area.rb`, `search_result.rb`, `settings.rb`,
+  `shortcuts_dialog.rb`, `sidebar_page.rb`, `signature_image_processing.rb`,
+  `signature_manager.rb` (uncommitted), `simple_color_swatch.rb`, `style.rb`,
+  `thumbnail_item.rb`, `undo_context.rb`, `undo_handler.rb`, `view_colors.rb`,
+  `view_cursor.rb`.
+- **Missing entirely** (no `lib/` file at all): the main window (`window.rb`),
+  the document view (`document_view.rb`), find sidebar, search box, the
+  sidebar container and every one of its five pages (thumbnails container,
+  links/outline, attachments, layers, annotations + its row), the properties
+  window and its four tab pages, the annotation-properties dialog, the whole
+  signature-placement flow (drawing widget, sign-manually dialog, visual
+  signature chooser, ink transformation), the page-number selector, and both
+  standalone binaries (previewer, thumbnailer).
+- **Biggest gap**: there is no `lib/window.rb` and no `lib/document_view.rb` —
+  the two files that host almost every other widget in this list. Nothing in
+  section 2–6 can be wired up as a real, visible component until those exist.
+
+This report is a survey only. No widget code was written to produce it.
