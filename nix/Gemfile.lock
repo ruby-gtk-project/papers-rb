@@ -47,9 +47,6 @@ GEM
     libspelling (1.0.0)
       gem_kit (~> 0.2)
       gobject-introspection (~> 4.3)
-    libxmlb (1.0.0)
-      gem_kit (~> 0.2)
-      gobject-introspection (~> 4.3)
     matrix (0.4.3)
     native-package-installer (1.1.9)
     pango (4.4.0)
@@ -71,7 +68,6 @@ DEPENDENCIES
   gtk4
   libsecret
   libspelling
-  libxmlb
 
 BUNDLED WITH
    2.7.2

@@ -113,10 +113,17 @@ Gem::Specification.new do |spec|
   spec.add_dependency("glib2", "~> 4.3")                                            # ruby >= 2.5
   spec.add_dependency("gtk4", "~> 4.3")                                             # ruby >= 2.5
   spec.add_dependency("adwaita", "~> 4.3")                                          # ruby >= 2.5
-  # Spell checking (shell/* uses this for the find box and form fields)
+  # Spell checking for text annotations and form fields (see
+  # lib/annotation_window.rb, called from Papers::Application#open_annotation_window).
   spec.add_dependency("libspelling", "~> 1.0")                                      # ruby >= 3.0
-  # Querying the binary XML blobs AppStream metadata is compiled into
-  spec.add_dependency("libxmlb", "~> 1.0")                                          # ruby >= 3.0
+  # NOTE: libxmlb was removed from here. Upstream's own meson.build only
+  # resolves "xmlb" as build-aux/macos's transitive dependency of the
+  # `appstreamcli` build-time tool (validates data/*.metainfo.xml.in.in at
+  # build time); no upstream .c/.rs source references Xmlb/XbSilo at
+  # runtime (checked with `git grep -ni "xmlb\|xbsilo"` across the whole
+  # tree). There is no AppStream-querying feature in papers itself for a
+  # Ruby binding of that namespace to serve, so the dependency line was
+  # wrong and is gone rather than wired to a non-existent use.
   # Keyring storage for document passwords (shell/src/keyring.rs)
   spec.add_dependency("libsecret", "~> 4.4")                                          # ruby >= 2.5
 

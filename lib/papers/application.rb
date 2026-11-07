@@ -5,6 +5,7 @@ require "adwaita"
 require_relative "../settings"
 require_relative "../style"
 require_relative "../shortcuts_dialog"
+require_relative "../annotation_window"
 
 module Papers
   # The port's application object.
@@ -32,6 +33,7 @@ module Papers
     ACCELS = {
       "app.help"         => ["F1"],
       "app.new"          => ["<Ctrl>N"],
+      "app.new-note"     => ["<Ctrl><Shift>N"],
       "app.quit"         => ["<Ctrl>Q"],
       "win.open"         => ["<Ctrl>O"],
       "win.close"        => ["<Ctrl>W"],
@@ -95,6 +97,7 @@ module Papers
             view.content = status_page
 
             header_bar.pack_end(menu_button)
+            header_bar.pack_end(new_note_button)
           end
 
           if @present
@@ -140,6 +143,16 @@ module Papers
       end
     end
 
+    # Opens a standalone AnnotationWindow (see annotation_window.rb), the
+    # one spot in this port's current surface that calls into libspelling.
+    def new_note_button
+      @new_note_button ||= Gtk::Button.new.tap do |button|
+        button.icon_name = "list-add-symbolic"
+        button.tooltip_text = "New Note"
+        button.action_name = "app.new-note"
+      end
+    end
+
     def status_page
       @status_page ||= Adwaita::StatusPage.new.tap do |page|
         page.title = "papers"
@@ -171,6 +184,7 @@ module Papers
           "help"      => -> { show_help },
           "shortcuts" => -> { shortcuts_dialog.present(app.active_window) },
           "new"       => -> { app.activate },
+          "new-note"  => -> { open_annotation_window },
           "quit"      => -> { quit },
         }.each { |name, handler| app.add_action(action(name, handler)) }
 
@@ -180,6 +194,19 @@ module Papers
       def action(name, handler)
         Gio::SimpleAction.new(name).tap do |simple|
           simple.signal_connect("activate") { handler.call }
+        end
+      end
+
+      # Each press opens a fresh note window, matching upstream's
+      # add-annotation flow (a new PpsAnnotationWindow per annotation),
+      # rather than one window reused across presses.
+      def open_annotation_window
+        AnnotationWindow.new(
+          title: "Note",
+          enable_spellchecking: settings.default["enable-spellchecking"],
+        ).build.tap do |note|
+          note.transient_for = app.active_window
+          note.present
         end
       end
 

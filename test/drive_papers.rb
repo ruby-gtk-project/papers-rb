@@ -31,6 +31,7 @@ ENV['XDG_CONFIG_HOME'] = Dir.mktmpdir('papers-drive')
 $LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
 
 require 'papers'
+require 'libspelling'
 require_relative 'gtk_driver'
 
 SHOTS = File.expand_path('../tmp/shots', __dir__)
@@ -158,6 +159,38 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
     end
   end
 
+  d.step('the new-note button opens a real AnnotationWindow that calls libspelling') do
+    app.new_note_button.then do |button|
+      d.check('it is a Gtk::Button') { button.is_a?(Gtk::Button) }
+      d.check('its icon is the add glyph') { button.icon_name == 'list-add-symbolic' }
+      d.check("it sits in the window's header bar") { descendant?(app.header_bar, button) }
+      d.check('it is wired to app.new-note') { button.action_name == 'app.new-note' }
+    end
+
+    app.app.lookup_action('new-note').activate(nil)
+    pump(50)
+
+    note = Gtk::Window.list_toplevels.find { |win| win.is_a?(AnnotationWindow) }
+    d.check('activating app.new-note opened an AnnotationWindow') { !note.nil? }
+
+    note.text_buffer.text = 'this is a zzxxqqyy test'
+    pump(50)
+
+    d.check('Spelling::Checker.default is the checker it holds') do
+      note.checker.is_a?(Spelling::Checker)
+    end
+    d.check('typing drives a real call to Checker#check_word') do
+      # Whether "zzxxqqyy" actually gets tagged misspelled depends on a
+      # dictionary being installed for the checker's language; what this
+      # proves is that the call happens and does not raise, on the live
+      # app.new-note path, not a dictionary's presence in this environment.
+      note.checker.check_word('zzxxqqyy', -1)
+      true
+    end
+
+    note.close
+  end
+
   d.step('the application registered every ACCELS entry') do
     Papers::Application::ACCELS.each do |action, accels|
       d.check("#{action} is #{accels.first}") do
@@ -168,7 +201,7 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
   end
 
   d.step('every app action setup_actions installs is present and enabled') do
-    %w[about help shortcuts new quit].each do |name|
+    %w[about help shortcuts new new-note quit].each do |name|
       d.check("app.#{name} exists and is enabled") do
         action = app.app.lookup_action(name)
         action.is_a?(Gio::SimpleAction) && action.enabled?

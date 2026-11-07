@@ -85,7 +85,7 @@
         # the GTK4 gems get their build inputs declared here.
         rubyGnomeGem = _attrs: {
           nativeBuildInputs = [ pkgs.pkg-config ];
-          buildInputs = gtkStack ++ extraTypelibDrvs;
+          buildInputs = gtkStack;
         };
 
         gemConfig = pkgs.defaultGemConfig // {
@@ -98,18 +98,11 @@
           libsecret = rubyGnomeGem;
         };
 
-        # The libxmlb gem's typelib (Xmlb-2.0) lives in libxmlb's `lib`
-        # output, not its default one. It is kept out of gtkStack and out of
-        # the `.out or drv` fallback below, which would redirect this
-        # explicit output back to the default one and make the typelib
-        # vanish.
-        extraTypelibDrvs = [ pkgs.libxmlb.lib ];
-
         # `makeSearchPath` would take each package's *first* output, and glib's
         # first output is `bin`, which carries no typelibs — hence the explicit
         # `.out`. at-spi2-core is here for the Atk typelib.
         typelibPath = pkgs.lib.makeSearchPath "lib/girepository-1.0"
-          (map (drv: drv.out or drv) (gtkStack ++ [ pkgs.at-spi2-core ]) ++ extraTypelibDrvs);
+          (map (drv: drv.out or drv) (gtkStack ++ [ pkgs.at-spi2-core ]));
 
         # nix/ and not the repo root: the root Gemfile is kettle-jem's
         # development bundle — rubocop, rspec, yard, the kettle-dev stack — and
@@ -145,7 +138,7 @@
           # the wrapper never looks. The wrapper below is built by hand and
           # points at both the pre- and post-move paths.
           nativeBuildInputs = [ pkgs.makeWrapper ];
-          buildInputs = [ gems ] ++ gtkStack ++ extraTypelibDrvs;
+          buildInputs = [ gems ] ++ gtkStack;
 
           dontBuild = true;
 
@@ -217,7 +210,7 @@
             pkgs.xvfb-run
             pkgs.gsettings-desktop-schemas
             pkgs.adwaita-icon-theme
-          ] ++ gtkStack ++ extraTypelibDrvs;
+          ] ++ gtkStack;
 
           # Icons, GSettings schemas and the GTK portal all resolve through
           # XDG_DATA_DIRS; without these the window opens with blank icons.

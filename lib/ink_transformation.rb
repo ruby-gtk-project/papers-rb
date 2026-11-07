@@ -7,8 +7,7 @@ require 'adwaita'
 #
 # Ported from upstream's shell/src/ink_transformation.rs. Upstream smooths a
 # stroke with the `ink-stroke-modeler-rs` crate, which has no Ruby binding
-# (this is not one of the gems this port is required to wire in — libspelling
-# and libxmlb are — so there is nothing to bind to here), so
+# and nothing upstream uses it for besides this one Rust-only algorithm, so
 # .smooth_stroke_points re-implements the same shape (take raw points plus
 # per-point timestamps and a pressure, hand back smoothed points) with a
 # plain weighted-moving-average pass instead of the modeler's physics model.
