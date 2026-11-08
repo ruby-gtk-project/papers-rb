@@ -132,3 +132,46 @@ dialog and one more orphaned widget per round, at the current rate, does not
 close the central gap: nothing yet reads a real PDF, renders a page, or
 shows a sidebar, and the application's main window remains a bare status
 page.
+
+## Round update (2026-11-08, `ruby` @ `2e31575ce`)
+
+`shell/src/window.rs` + `shell/resources/pps-window.blp` → `lib/window.rb`
+landed this round (282 lines). This is the single component this ledger's
+previous pass named as the central gap, and it is now built — but reading
+it against the four axes shows a **narrow** component, not the whole
+upstream window:
+
+| Widget/behaviour | Upstream | Port (`lib/window.rb`) | Verdict |
+|---|---|---|---|
+| `Gtk.Stack` with pages | `start`, `error`, `password`, `loader`, `document`, `presentation` (6) | `start`, `error`, `password`, `loader` (4) | **gap** — the two pages that actually show a document (`document`, `presentation`) are absent, because `document_view.rb`/`view.rb` do not exist. The window's own header comment names this; see the file itself. |
+| `win.open`, `win.close`, `win.fullscreen`, `win.night-mode` actions | installed, bound to accelerators | installed (`add_action`), bound (step `[6]` of the drive script confirms) | **parity** — this closes last round's "dead accelerator" finding (an accelerator bound but never `add_action`-ed). |
+| `win.presentation` action | installed upstream | **dropped**, not installed, and its accelerator removed to match | **correspondence, not a gap-by-omission-rule, because there is nothing live to bind it to** — `PpsViewPresentation` doesn't exist. This is still a gap (presentation mode is an upstream feature absent from the port) but it is recorded honestly rather than as a dead no-op, which is strictly better than last round's finding on the same axis. |
+| Main menu (`app_menu`: new window, help, about/shortcuts/quit) | 3 `item`s | present, wired to `app.new`, `app.help`(?), `app.shortcuts`/`app.about` | **parity** for the menu itself; see step `[1]` |
+| Toolbar / header bar content widgets (page selector, search box, sidebar toggle) | present | **absent** — `lib/window.rb` does not instantiate `PageSelector`, `SidebarPage`'s container, or a search box | **gap, unchanged from last round** — `PageSelector` (`lib/page_selector.rb`, built two commits ago) remains unreferenced by `window.rb`; `grep -n 'PageSelector\|Sidebar\|DocumentView' lib/window.rb` returns nothing but its own doc-comment prose |
+| Document content area | `Adw.ToastOverlay` > `Gtk.Stack` > sidebar + `PpsDocumentView` | `Adw.ToastOverlay` > `Gtk.Stack` of the 4 non-document pages only | **gap** |
+
+**Net effect on the verdict:** one more unit (`window.rb`) crosses from
+"does not exist" to "built and reachable", joining `shortcuts_dialog` and
+`annotation_window`. It does not change the app's actual capability: a
+user still cannot open and view a PDF, because the window's `document` page
+— the entire point of a document viewer — has no widget behind it. The
+previous round's verdict ("0 of ~25 upstream shell units have component
+parity... nothing yet reads a real PDF, renders a page, or shows a
+sidebar") is **unchanged in substance**: `window.rb` is now one of the
+units with partial parity (menu + actions + 4/6 stack pages), but the units
+that actually render a document — `view.rb`, `document_view.rb`,
+`sidebar.rb` and every sidebar page — are still entirely unbuilt, and that
+is where essentially all of a document viewer's user-facing behaviour
+lives. `PageSelector` and `ProgressMessageArea` remain orphaned: built,
+correct in isolation (confirmed again by the drive script's steps `[18]`
+and `[34]`), never instantiated by the one file (`window.rb`) that now
+exists to wire them in.
+
+**Revised count: 1 of ~25 upstream shell units has partial component
+parity (`window.rb` — 4/6 stack pages, 2/5-ish action bindings, menu
+correct), 3 are built-and-reachable leaves (`shortcuts_dialog`, `about`,
+`annotation_window`), and the remainder (view, document_view, sidebar and
+all six sidebar pages, properties window and its tabs, all signature
+dialogs, previewer, thumbnailer) are unbuilt.** None has full four-axis
+parity yet, because none of the built units' upstream source is fully
+covered — `window.rb` itself is missing a third of its own stack.

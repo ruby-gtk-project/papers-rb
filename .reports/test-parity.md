@@ -119,3 +119,60 @@ twice, for a second consecutive round.
   asserts that opening a real PDF through the port's `DocumentModel` actually
   returns correct text/annotation data, which is what rows 1–2 are really
   about. That remains a gap regardless of how row 3–6's mechanism differs.
+
+## Round update (2026-11-08, `ruby` @ `2e31575ce`)
+
+Re-ran the gate after `2e31575ce` ("Port the main window",
+`shell/src/window.rs` + `pps-window.blp` → `lib/window.rb`):
+
+```
+nix develop --command xvfb-run -a ruby test/drive_papers.rb
+...
+163 of 163 checks passed
+DRIVE OK
+```
+
+This matches the round's reported gate exactly: `drive_ok=true`, 163 checks,
+0 failed, 34 components (steps `[0]`–`[34]`, 35 named steps — one, step
+`[0]`, title says "the window builds and shows the empty state" rather than
+driving a component by name, so "34 components" counts the steps that name
+one). This is a real increase over the previous round's 147/28: `window.rb`
+now exists, is driven directly (steps `[0]`–`[9]` build it, flip its
+`Gtk::Stack` through "start"/"error"/"password"/"loader", exercise its
+`win.*` actions and accelerators through real `Gio::SimpleAction`
+dispatch), and the shortcuts/about dialogs and `app.new` are now opened
+through the window's own menu button rather than constructed standalone.
+That is a genuine narrowing of the gap this report flagged last round (a
+dead `win.open` accelerator): `win.open`, `win.close`, `win.fullscreen`,
+`win.night-mode` are now installed by `window.rb#build` and checked by step
+`[6]` ("every app action setup_actions installs is present and enabled").
+
+**It is still not evidence that the 7 upstream-test gap closed, and it is
+still not evidence of integration-level parity for the app's core job.**
+Nothing in the 163 checks opens a real PDF, renders a page, extracts text,
+walks an outline, or lists an attachment — because `lib/view.rb`
+(`libview/pps-view.c`, 7745 lines, the core page renderer) and
+`lib/document_view.rb` (`shell/src/document_view.rs`) still do not exist
+(`.reports/component-inventory.md` is unchanged on this point). Step `[3]`
+("win.open runs a real file through content-type detection to the error
+page") is the closest the gate gets to document loading, and its own name
+says where it stops: every file, including a real PDF, currently resolves
+to the *error* page, because no `PpsDocument` backend is registered. The
+7 upstream tests this ledger owes (annotation extraction, encrypted-document
+handling via two job tests, two Rust ABI cross-checks, one thumbnailer smoke
+test) remain **0/7 ported**, unchanged from last round — none of their
+subject matter (a document backend, a thumbnailer binary) exists yet to
+test.
+
+**Still no `spec/` suite.** `spec/spec_helper.rb` and `spec/README.md` are
+the only files under `spec/`; `find spec -name '*_spec.rb'` returns nothing.
+`rake spec` has never been run against a real example in this port — there
+are no examples. This is a gap in its own right, independent of the 7
+upstream-test census above: the gemspec/Rakefile wire up RSpec, and it has
+0 specs to run. A test target that exists and has nothing registered under
+it is a gap the runtime gate does not surface, because `rake test` ==
+`test/drive_papers.rb` in this port's `Rakefile`, not `rake spec`.
+
+Upstream test count, port count and gap count are unchanged at **7 upstream
+/ 0 ported / 7 gaps**; the `## Extra` count grows from 147 to 163 checks
+across 35 named steps, still not parity work per this skill's own rule.

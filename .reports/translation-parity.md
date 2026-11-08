@@ -87,3 +87,30 @@ None. The port currently emits zero of its own translatable strings through
 any marker, so there is nothing to list as "extra, untranslated" — every
 string it shows is simply unmarked plain text, which is the gap recorded
 above, not a separate category.
+
+## Round update (2026-11-08, `ruby` @ `2e31575ce`)
+
+Re-checked after `2e31575ce` (`lib/window.rb` landed). No change to this
+ledger's substance: `find . -iname 'po' -o -iname '*.po'` returns nothing
+under the port tree, `grep -rn "gettext\|_(\|N_(\|n_(" lib/ exe/` returns
+zero hits, and `window.rb`'s new user-visible strings — `'Document
+Viewer'` (window title, `lib/window.rb:47`), its menu item labels, its
+error-page heading — are bare Ruby literals, not gettext calls, exactly
+the same defect this ledger already records for every other file. No new
+message closes a gap and no new message opens one that wasn't already
+open in spirit (window titles/menu labels are covered by the existing
+533-message upstream census; the specific strings `window.rb` now builds
+are a subset of rows already marked `gap` in this file's tables).
+
+**Still 0/533 messages, 0/102 languages, 0 translated strings shipped.**
+The gate's runtime pass (163/163, 34 components) and this ledger's 0/533
+are not in tension — the drive script asserts on English literals
+throughout (e.g. step `[0]`'s "the window builds and shows the empty
+state", step `[9]`'s "the about dialog ... carries upstream's fields"),
+so a fully English, fully unlocalised app can and does pass all 163 checks
+without any of them exercising a translated string. No check in
+`test/drive_papers.rb` sets `LANGUAGE=`/`LC_ALL=` to a non-English locale;
+confirmed by `grep -n 'LANGUAGE\|LC_ALL' test/drive_papers.rb test/gtk_driver.rb`
+returning nothing. The "non-English screen check" row in this ledger's
+header remains **not run**, for the same reason it was not run last
+round: there is no catalogue to load.

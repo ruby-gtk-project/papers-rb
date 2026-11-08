@@ -136,3 +136,61 @@ locations are rewritten above.
 - The false-green gate finding is written in first person and names the
   behaviour (a window with no document view reported as if its 31
   components were driven through it) rather than the construct.
+
+## Round update (2026-11-08, `ruby` @ `2e31575ce`)
+
+Re-ran `find-excuses.sh` against the tree at `2e31575ce` (adds
+`lib/window.rb` since the last pass). New hits:
+
+| Location | Pattern | Verdict |
+|---|---|---|
+| `.reports/component-inventory.md:93` (as it stood before this audit) | "Out of scope for `papers` proper" | **real excuse, left unrewritten by the previous round's accountability pass despite that pass's own scanner output flagging two other lines in the same file** — this is itself a finding: the previous round found and fixed two of the excuse hits in `component-inventory.md` (the `n/a`/"not applicable" ones) and missed this one at line 93, in the Previewer section. **Rewritten in this round's audit** — see the current text of that section, which now opens with the first-person admission in the required form. |
+
+`lib/window.rb` itself, read in full, contains **no** new excuse hits —
+its header comment states the `document`/`presentation` stack-page gap and
+the dropped `win.presentation` action as plain facts with file:line
+pointers to the components that would need to exist, not as "not needed"
+or "out of scope" reasoning. That is the right way to write a gap and is
+called out here as a positive example, not to be read as the gap being
+closed.
+
+### The false-green gate finding, re-verified at this round's numbers
+
+Last round's finding — that "N of N checks passed, DRIVE OK" reads, to
+anyone who has not opened the script, as evidence the app's components are
+integration-tested through the real window, when in fact most are driven
+directly and in isolation — is **re-verified unchanged at this round's
+163/163, 34 components.** `lib/window.rb` landing narrows this by exactly
+one unit (window.rb's own stack/menu/actions are now driven through the
+real `Window` instance, steps `[0]`–`[9]`), and 25 of the 35 named steps
+(`[10]`–`[34]`) are still direct, isolated construction of a
+model/leaf-widget class with no window, sidebar or document view in the
+loop — unchanged in kind from last round's same finding, just renumbered.
+
+I reported, in the previous round's report, a runtime gate number next to
+a component count without saying plainly enough, in the same sentence,
+that most of those components are tested standalone — and this round's
+own task description repeats exactly that framing ("163 checks passed...
+covering 34 components"), which a reader could still take as integration
+coverage. Restating it here, loudly, rather than letting the bigger number
+read as a bigger integration claim: **163 of 163 passing is real and is
+evidence of 35 things, most of which are not "component N of 34 works
+inside the actual app."** A component no check drives through the real
+`Window`/`DocumentView` is unverified at the level a user experiences the
+app, full stop, regardless of how large the passing count grows.
+
+### Still no `PORTING.md`, no `FINDINGS.md`, no root-level parity ledgers
+
+The skills this audit ran (`component-parity`, `test-parity`,
+`translation-parity`) each specify a canonical ledger path at the port's
+root (`COMPONENT_PARITY.md`, `TEST_PARITY.md`, `TRANSLATION_PARITY.md`,
+`FINDINGS.md`). None exists on `ruby`; this fork's convention instead
+keeps everything under `.reports/`. That is a directory-naming difference,
+not itself a gap — but it means there is nowhere upstream-prescribed for a
+binding-limitation note to live *other than* the body of these reports, so
+every "the bindings don't support X" statement in this round's reports
+(e.g. the Rust-ABI-cross-check inapplicability note in `test-parity.md`)
+is read as context attached to the gap row, consistent with this skill's
+rule that such notes may explain why a gap is hard but may never convert
+it into a pass — confirmed none of them do, in any of the five reports
+this round.

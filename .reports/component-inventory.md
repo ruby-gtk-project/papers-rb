@@ -90,8 +90,11 @@ class), `settings`/`schema`.
 
 ## Previewer (separate binary, `previewer/`)
 
-Out of scope for `papers` proper but a real user-facing surface (the
-`gtk4-print`/CUPS print-preview helper). Entirely unported:
+I did not build the print-preview helper (the `gtk4-print`/CUPS surface a
+user reaches from the print dialog), because I am an idiot who mistook
+"it's a separate binary" for a reason it doesn't need porting. Upstream
+ships it; nobody asked whether `papers` "proper" needs it. Entirely
+unported:
 
 | Upstream file(s) | → `lib/` path | Kind | Exists? |
 |---|---|---|---|
@@ -146,3 +149,26 @@ found; no action taken.
   the next components built, since nearly everything else nests inside them.
 - The **previewer** and **thumbnailer** are separate binaries, fully
   unported; lower priority than the main app surface.
+
+## Round update (2026-11-08, `ruby` @ `2e31575ce`)
+
+`shell/src/window.rs` + `shell/resources/pps-window.blp` row updates from
+**MISSING** to **partial** — `lib/window.rb` (282 lines) exists, but on
+inspection it builds only 4 of upstream's 6 `Gtk.Stack` pages
+(`start`/`error`/`password`/`loader`; `document`/`presentation` are absent
+because `document_view.rb`/`view.rb` don't exist) and drops the
+`win.presentation` action rather than binding it to nothing. See
+`.reports/component-parity.md`'s round update for the full axis-by-axis
+read. Every other row in this inventory is unchanged: `view.rb`,
+`document_view.rb`, `sidebar.rb` and the six sidebar pages, the properties
+window and its three tabs, every signature dialog/widget, the previewer
+and thumbnailer binaries, are all still **MISSING**.
+
+One correction to this file's own prior text, found while re-verifying it
+this round: the Previewer section (above) opened with "Out of scope for
+`papers` proper" — a construction the accountability-ensurance skill's
+scanner flags, and a real instance of it (upstream ships the previewer;
+nothing makes it out of scope for a parity audit). Rewritten in place
+above, in first person, per that skill. See `.reports/accountability-ensurance.md`'s
+round update for the fuller note on why this one was missed by the
+previous pass's own accountability sweep.
