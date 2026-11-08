@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Upstream | `main` @ `origin/main` (archived 2026-11-07) |
-| Port | `ruby` @ `1cf0bfddd` |
+| Port | `ruby` @ `1efab65e2` |
 | Upstream tests | 7 |
 | Ported | 0 |
 | Gaps | 7 |
@@ -45,59 +45,67 @@ crashing, a thumbnail generator produces a usable PNG) are still owed.**
 
 ## The runtime gate, read correctly
 
-The round's gate was reported as `drive_ok=true, 131 checks passed, 0
-failed, covering 31 components`. Running it directly reproduces that:
+The round's gate was reported as `drive_ok=true, 147 checks passed, 0
+failed, covering 28 components`. Running it directly reproduces that:
 
 ```
 nix develop --command xvfb-run -a ruby test/drive_papers.rb
 ...
-131 of 131 checks passed
+147 of 147 checks passed
 DRIVE OK
 ```
 
 This is real — the command runs, under the fork's own dev shell and a
-virtual display, and all 131 named checks do pass. But it is a **narrow**
-gate, and the drive script says so about itself, in its own header comment:
+virtual display, and all 147 named checks do pass. But it is still a
+**narrow** gate, and the drive script's own header comment has not changed
+to say otherwise:
 
 > "since `application.rb` wires almost nothing else into the running window
 > yet — \[this script] builds and exercises every other widget and model
 > class the port ships \[...] directly, the same way the window would if it
 > used them."
 
-Read plainly: 29 of the 31 "components" the gate covers
-(`LoaderView`, `PasswordDialog`/`PasswordView`, `ProgressMessageArea`,
+One thing did change since the last pass (`98d879712`): `AnnotationWindow`
+is now opened by step `[2]` *through* the real `app.new-note` action, not
+built in isolation — the first time a step in this file has actually driven
+the window to produce a widget rather than constructing that widget by
+hand. That is real, incremental progress against this report's own
+complaint. Everything else in the gate is unchanged in kind: 30 of the 33
+named steps (`[10]`–`[32]`, covering `PageSelector` — new this round — plus
+`LoaderView`, `PasswordDialog`/`PasswordView`, `ProgressMessageArea`,
 `SimpleColorSwatch`, `SidebarPage`, `DocumentModel`, `AnnotationModel`,
 `History`, `UndoContext`, `ThumbnailItem`, `SearchResult`, `FileMonitor`,
 `Keyring`, `Metadata`, `SignatureImageProcessing`, `SignatureManager`,
 `InkTransformation`, `ViewColors`, `ViewCursor`, `CssUtils`,
-`PropertiesLicense`, and the application/shortcuts/about dialogs) are
-instantiated and poked **directly**, bypassing the main window entirely —
-because the main window (`lib/window.rb`), the document view
-(`lib/document_view.rb`), and every sidebar/properties/annotation widget
-that would actually wire them together **do not exist**
-(`.reports/component-inventory.md` §1–6, and `.reports/component-parity.md`).
-"131 of 131 checks passed" is therefore not evidence that the app works end
-to end; it is evidence that 20-odd backend classes work in isolation, which
-is a real and useful signal, but a different and much smaller claim than
-"the app's 31 components are integration-tested." A component no check
-exercises *through the real window* is unverified at the level a user
+`PropertiesLicense`) are still instantiated and poked **directly**,
+bypassing the main window entirely — because the main window
+(`lib/window.rb`), the document view (`lib/document_view.rb`), and every
+sidebar/properties widget that would actually wire them together **still
+do not exist** (`.reports/component-inventory.md` §1–6, and
+`.reports/component-parity.md`). "147 of 147 checks passed" is therefore
+still not evidence that the app works end to end; it is evidence that one
+more leaf dialog is now wired in and ~22 backend/leaf classes work in
+isolation — a real and useful signal, but a different and much smaller
+claim than "the app's 28 components are integration-tested." A component no
+check exercises *through the real window* is unverified at the level a user
 experiences the app, regardless of how many unit-style checks exercise its
 class directly. This gate passing and the app still having no document
 viewer, no sidebar, and five dead keyboard accelerators (see
 `component-parity.md`) are not in tension — they are the same fact stated
-twice.
+twice, for a second consecutive round.
 
 ## Extra
 
-- `test/drive_papers.rb` + `test/gtk_driver.rb` — 131 checks across 30 named
-  steps, driving: application build, window/toolbar/menu construction, the
-  shortcuts and about dialogs, settings round-trip to disk, stylesheet
-  parsing, and the 20 backend/model classes listed above, each exercised
-  directly rather than through the window. None of these were written from
-  an upstream test; they are new coverage for the port's own classes and
-  are not parity work (per the skill's rule, they stay listed here, outside
-  the 0/7 count, and are not double-counted as if they closed any of the
-  7 gaps above).
+- `test/drive_papers.rb` + `test/gtk_driver.rb` — 147 checks across 33 named
+  steps (`[0]`–`[32]`), driving: application build, window/toolbar/menu
+  construction, the shortcuts and about dialogs, settings round-trip to
+  disk, stylesheet parsing, the annotation window (now through the real
+  `app.new-note` action), and ~22 backend/model/leaf-widget classes listed
+  above, most still exercised directly rather than through the window. None
+  of these were written from an upstream test; they are new coverage for
+  the port's own classes and are not parity work (per the skill's rule,
+  they stay listed here, outside the 0/7 count, and are not double-counted
+  as if they closed any of the 7 gaps above).
 
 ## Findings for `FINDINGS.md` (binding/architecture notes, not excuses)
 

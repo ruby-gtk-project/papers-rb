@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Upstream | `main` @ `origin/main` (archived 2026-11-07) |
-| Port | `ruby` @ `1cf0bfddd` |
+| Port | `ruby` @ `1efab65e2` (re-checked 2026-11-08; no `po/` directory and no gettext dependency added since the last pass — grep below reproduced fresh) |
 | Domain | `papers` (unconfirmed — read from `meson project()`; no committed `.pot` to cross-check against, and upstream's `po/papers.pot` is not committed to the tree, only generated at build time) |
 | Upstream messages | 533 |
 | Ported | 0 |

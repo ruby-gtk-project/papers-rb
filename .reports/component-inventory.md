@@ -34,7 +34,7 @@ class), `settings`/`schema`.
 | `shell/src/sidebar_annotations_row.rs` + `shell/resources/pps-sidebar-annotations-row.blp` (291 lines) | `lib/sidebar_annotations_row.rb` | row | **MISSING** |
 | `shell/src/find_sidebar.rs` + `shell/resources/pps-find-sidebar.blp` (292 lines — search results list) | `lib/find_sidebar.rb` | page | **MISSING** |
 | `shell/src/search_box.rs` + `shell/resources/pps-search-box.blp` (262 lines — the header-bar find entry) | `lib/search_box.rb` | widget | **MISSING** |
-| `shell/src/page_selector.rs` + `shell/resources/pps-page-selector.blp` (309 lines) | `lib/page_selector.rb` | widget | **MISSING** |
+| `shell/src/page_selector.rs` + `shell/resources/pps-page-selector.blp` (309 lines) | `lib/page_selector.rb` | widget | **yes** (ported `1efab65e2`, after this survey's first pass — orphaned: no caller instantiates it; see `.reports/component-parity.md`) |
 | `shell/src/properties_window.rs` + `shell/resources/pps-properties-window.blp` (143 lines — the tabbed `AdwDialog`) | `lib/properties_window.rb` | dialog | **MISSING** |
 | `shell/src/properties_general.rs` (396 lines, no separate `.blp`: general-info tab) | `lib/properties_general.rb` | page | **MISSING** |
 | `shell/src/properties_fonts.rs` + `shell/resources/pps-properties-fonts.blp` (129 lines) | `lib/properties_fonts.rb` | page | **MISSING** |
@@ -128,7 +128,10 @@ found; no action taken.
 
 ## Summary
 
-- `lib/` currently ports **21 of the ~60 user-facing/model components**
+- **Refresh note (2026-11-08):** the page selector row above was flipped to
+  **yes** after `1efab65e2` landed one commit later than this survey's
+  original pass; no other row changed. `lib/` currently ports **22 of the
+  ~60 user-facing/model components**
   identified above (the context/model layer almost entirely, plus five small
   dialogs/pages: loader view, password view, password dialog, shortcuts
   dialog, properties-license page, progress message area, and three small

@@ -2,9 +2,26 @@
 
 | | |
 |---|---|
-| Upstream | `main` @ `b6e5dcf` area (origin/main, 2026-11-07 clone) |
-| Port | `ruby` @ `1cf0bfddd` |
-| Units with parity | 0 / ~25 |
+| Upstream | `main` @ `0b1fe819a` area (origin/main, 2026-11-08 refresh) |
+| Port | `ruby` @ `1efab65e2` |
+| Units with parity | 0 / ~25 reachable; 2 of ~25 built-but-unreachable added this pass (page selector, annotation window — see below) |
+
+**Refresh note (2026-11-08):** re-run after `be30e5f24` (AnnotationWindow +
+libspelling) and `1efab65e2` (page selector). One genuinely new fact changes
+the picture in the app's favour — `AnnotationWindow` is wired end-to-end
+through `Papers::Application#open_annotation_window` and `app.new-note`,
+and the drive script opens it through that real action (`test/drive_papers.rb`
+step `[2]`), not in isolation. That makes it the **first libview/shell widget
+in the port that is both built and reachable from the running app.**
+Page selector is the opposite: built with real behavioural parity
+(clamping, scroll, typed-entry resolution — `test/drive_papers.rb` step
+`[32]`) but, like `loader_view`/`password_view`/`progress_message_area`/
+`properties_license` before it, instantiated only by the drive script —
+`lib/papers/application.rb` never references `PageSelector`, and there is
+still no `document_view.rb`/toolbar for it to live in. The headline verdict
+below is otherwise unchanged: **the main window, document view, sidebar
+container and every sidebar page, the properties window and its tabs, and
+all four signature/annotation dialogs are still missing outright.**
 
 This ledger is built on top of `.reports/component-inventory.md` (the
 component-identification survey) and on a direct widget-token scan of
@@ -45,7 +62,7 @@ it. **Do not read 35≈34 as near-parity — read the file-mapping table.**
 | Application shell / actions | `shell/src/application.rs` | `lib/papers/application.rb` | partial — actions/accels for about/help/quit/new/shortcuts exist; `win.open`, `win.close`, `win.fullscreen`, `win.night-mode`, `win.presentation` are bound to accelerators (`Application::ACCELS`) but target a window (`Papers::Application#window`) that has no `open`, `close`, `fullscreen`, `night-mode` or `presentation` action installed anywhere — **dead accelerators**, five of them |
 | Main window | `shell/src/window.rs` + `pps-window.blp` | — | **gap**. `Application#window` builds a bare `Adwaita::ApplicationWindow` with a status page; no header bar document title, no sidebar/document `Adw.OverlaySplitView`, no toolbar, no search toggle |
 | Document view | `shell/src/document_view.rs` (+`actions.rs`,`io.rs`,`print.rs`,`signals.rs`) + `pps-document-view.blp` | — | **gap** — no file |
-| Page selector | `shell/src/page_selector.rs` + `pps-page-selector.blp` | — | **gap** — no file |
+| Page selector | `shell/src/page_selector.rs` + `pps-page-selector.blp` | `lib/page_selector.rb` | **built, but orphaned** — clamping/scroll/typed-entry behaviour matches upstream per the drive script, but nothing in `lib/papers/application.rb` or any other file instantiates it; unreachable from the running app, same pattern as loader_view/password_view/progress_message_area/properties_license |
 | Find sidebar / search box | `shell/src/find_sidebar.rs`, `shell/src/search_box.rs` + their `.blp` | — | **gap** — no file for either |
 | Sidebar container | `shell/src/sidebar.rs` + `pps-sidebar.blp` | — | **gap** — no file |
 | Sidebar: thumbnails | `shell/src/sidebar_thumbnails.rs` + `.blp` | `lib/thumbnail_item.rb` (row model only) | **gap** — the list/page widget itself does not exist; only its row data class does |
@@ -65,6 +82,7 @@ it. **Do not read 35≈34 as near-parity — read the file-mapping table.**
 | Password view / dialog | `shell/src/password_view.rs`, `pps-password-dialog.blp` | `lib/password_view.rb`, `lib/password_dialog.rb` | built, same orphaning problem |
 | Progress message area | `shell/src/progress_message_area.rs` + `.blp` | `lib/progress_message_area.rb` | built, same orphaning problem |
 | Shortcuts dialog | `pps-shortcuts-dialog.blp` | `lib/shortcuts_dialog.rb` | **reachable** — wired to `app.shortcuts`, the one dialog the port actually connects end to end |
+| Annotation window (libview) | `libview/pps-annotation-window.c/.h` | `lib/annotation_window.rb` | **reachable** — wired to `app.new-note` via `Papers::Application#open_annotation_window`; the spellcheck adapter is honestly substituted with `Spelling::Checker.default` word-by-word (no `GtkSourceView` binding available — see the file's own header comment) rather than silently dropped. The second dialog, after shortcuts, that is both built and connected end to end. |
 | Previewer (separate binary) | `previewer/*` | — | **gap** — no `exe/`/`lib/` file at all |
 | Thumbnailer (separate binary) | `thumbnailer/*` | — | **gap** — no `exe/`/`lib/` file at all |
 
@@ -97,14 +115,20 @@ do not exist in the port yet.
 
 ## Verdict
 
-**0 of the ~25 upstream shell units have component parity.** Three more
+**0 of the ~25 upstream shell units have component parity.** Four more
 (`loader_view`, `password_view`/`password_dialog`, `progress_message_area`,
-`properties_license`) are internally correct but structurally unreachable —
-built in isolation, never instantiated by anything the running app reaches,
-so a user can never see them. Only the shortcuts dialog and the about dialog
-are both built and reachable. This is consistent with, and sharpens,
-`.reports/component-inventory.md`'s own finding that `lib/window.rb` and
-`lib/document_view.rb` are "the single largest gap in the port" — that
-survey undersold it slightly: without `window.rb`/`document_view.rb` wiring
-them in, four more built-and-working classes are also dead code from the
-user's point of view.
+`properties_license`, `page_selector`) are internally correct but
+structurally unreachable — built in isolation, never instantiated by
+anything the running app reaches, so a user can never see them. Only the
+shortcuts dialog, the about dialog, and now the annotation window are both
+built and reachable — three leaf widgets, still none of them the window,
+the document view, or any sidebar page. This is consistent with, and
+sharpens, `.reports/component-inventory.md`'s own finding that
+`lib/window.rb` and `lib/document_view.rb` are "the single largest gap in
+the port" — that survey undersold it slightly: without `window.rb`/
+`document_view.rb` wiring them in, five more built-and-working classes are
+also dead code from the user's point of view. Adding one reachable leaf
+dialog and one more orphaned widget per round, at the current rate, does not
+close the central gap: nothing yet reads a real PDF, renders a page, or
+shows a sidebar, and the application's main window remains a bare status
+page.
