@@ -6,6 +6,7 @@ require_relative "../settings"
 require_relative "../style"
 require_relative "../shortcuts_dialog"
 require_relative "../annotation_window"
+require_relative "../window"
 
 module Papers
   # The port's application object.
@@ -30,16 +31,22 @@ module Papers
     HELP_URI = "help:papers"
 
     # Upstream's setup_actions accelerators, app.* and win.* alike.
+    #
+    # Upstream's "win.presentation" is left out: it targets
+    # PpsViewPresentation, which does not exist in this port yet (see
+    # view.rb in the inventory), and binding it to window.rb's "open",
+    # "close", "fullscreen" and "night-mode" GActions is the whole point —
+    # a fifth accelerator aimed at nothing would silently no-op exactly like
+    # the ones this round fixes.
     ACCELS = {
-      "app.help"         => ["F1"],
-      "app.new"          => ["<Ctrl>N"],
-      "app.new-note"     => ["<Ctrl><Shift>N"],
-      "app.quit"         => ["<Ctrl>Q"],
-      "win.open"         => ["<Ctrl>O"],
-      "win.close"        => ["<Ctrl>W"],
-      "win.fullscreen"   => ["F11"],
-      "win.night-mode"   => ["<Ctrl>I"],
-      "win.presentation" => ["F5", "<Shift>F5"],
+      "app.help"       => ["F1"],
+      "app.new"        => ["<Ctrl>N"],
+      "app.new-note"   => ["<Ctrl><Shift>N"],
+      "app.quit"       => ["<Ctrl>Q"],
+      "win.open"       => ["<Ctrl>O"],
+      "win.close"      => ["<Ctrl>W"],
+      "win.fullscreen" => ["F11"],
+      "win.night-mode" => ["<Ctrl>I"],
     }.freeze
 
     COPYRIGHT = "© 1996–2025 The Papers authors"
@@ -82,22 +89,12 @@ module Papers
         end
 
         app.signal_connect("activate") do
-          window.tap do |win|
-            win.content = toolbar_view
-            settings.default.apply_to(win)
-
-            win.signal_connect("close-request") do
-              settings.default.remember(win)
-              false
+          unless @window_built
+            @window_built = true
+            window.build.tap do |win|
+              win.start_menu_button.menu_model = app_menu
+              win.start_header_bar.pack_end(new_note_button)
             end
-          end
-
-          toolbar_view.tap do |view|
-            view.add_top_bar(header_bar)
-            view.content = status_page
-
-            header_bar.pack_end(menu_button)
-            header_bar.pack_end(new_note_button)
           end
 
           if @present
@@ -113,16 +110,10 @@ module Papers
     # object comes from Gtk and only the window is Adwaita.
     def app = @app ||= Gtk::Application.new(APP_ID, :non_unique)
 
-    def window
-      @window ||= Adwaita::ApplicationWindow.new(app).tap do |win|
-        win.title = "papers"
-        win.width_request = 360
-        win.height_request = 360
-      end
-    end
-
-    def toolbar_view = @toolbar_view ||= Adwaita::ToolbarView.new
-    def header_bar = @header_bar ||= Adwaita::HeaderBar.new
+    # The real PpsWindow (see window.rb) rather than a bare ApplicationWindow:
+    # the sidebar/document layout, the win.* actions and the open/error/
+    # password/loader pages all live there now.
+    def window = @window ||= Window.new(application: app, settings: settings)
 
     # The main menu from shell/resources/pps-window.blp. Every item in it is an
     # application action, so the menu belongs to the application.
@@ -134,15 +125,6 @@ module Papers
       end
     end
 
-    def menu_button
-      @menu_button ||= Gtk::MenuButton.new.tap do |button|
-        button.icon_name = "open-menu-symbolic"
-        button.tooltip_text = "Main Menu"
-        button.menu_model = app_menu
-        button.primary = true
-      end
-    end
-
     # Opens a standalone AnnotationWindow (see annotation_window.rb), the
     # one spot in this port's current surface that calls into libspelling.
     def new_note_button
@@ -150,14 +132,6 @@ module Papers
         button.icon_name = "list-add-symbolic"
         button.tooltip_text = "New Note"
         button.action_name = "app.new-note"
-      end
-    end
-
-    def status_page
-      @status_page ||= Adwaita::StatusPage.new.tap do |page|
-        page.title = "papers"
-        page.description = "A Ruby GTK4 and Libadwaita port of the Papers document viewer."
-        page.icon_name = "x-office-document-symbolic"
       end
     end
 

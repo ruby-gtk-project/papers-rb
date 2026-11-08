@@ -29,6 +29,7 @@ require_relative "loader_view"
 require_relative "password_dialog"
 require_relative "password_view"
 require_relative "shortcuts_dialog"
+require_relative "window"
 
 require_relative "papers/rb/version"
 require_relative "papers/application"

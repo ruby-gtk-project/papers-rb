@@ -101,24 +101,27 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
   d.window { app.window }
 
   d.step('the window builds and shows the empty state') do
-    d.check('the window is an Adwaita::ApplicationWindow') do
-      app.window.is_a?(Adwaita::ApplicationWindow)
-    end
+    d.check('the window is the port\'s real Window (PpsWindow)') { app.window.is_a?(Window) }
+    d.check('it is an Adwaita::ApplicationWindow') { app.window.is_a?(Adwaita::ApplicationWindow) }
     d.check('it is the only toplevel') { Gtk::Window.list_toplevels.length == 1 }
-    d.check('its title is papers') { app.window.title == 'papers' }
-    d.check('the toolbar view is the window content') do
-      app.window.content.equal?(app.toolbar_view)
+    d.check('its title is Document Viewer') { app.window.title == 'Document Viewer' }
+    d.check('the toast overlay is the window content') do
+      app.window.content.equal?(app.window.toast_overlay)
     end
-    d.check('the status page is the toolbar view content') do
-      app.toolbar_view.content.equal?(app.status_page)
+    d.check('the stack is the toast overlay\'s child') { app.window.toast_overlay.child.equal?(app.window.stack) }
+    d.check('the stack opens on the start page') { app.window.stack.visible_child_name == Window::MODE_START }
+    d.check('the stack carries all four built pages') do
+      %w[start error password loader].all? { |name| !app.window.stack.get_child_by_name(name).nil? }
     end
-    d.check('the status page names the app') { app.status_page.title == 'papers' }
-    d.check('the status page carries a description') do
-      !app.status_page.description.to_s.empty?
+    d.check('the start page names the empty state') { app.window.start_status_page.title == 'Open a Document' }
+    d.check('the start page carries a description') do
+      !app.window.start_status_page.description.to_s.empty?
     end
-    d.check('the header bar is a top bar of the toolbar view') do
-      descendant?(app.toolbar_view, app.header_bar)
+    d.check('the start header bar is a top bar of the start toolbar view') do
+      descendant?(app.window.start_toolbar_view, app.window.start_header_bar)
     end
+    d.check('the loader page is the real LoaderView instance') { app.window.loader_view.is_a?(LoaderView) }
+    d.check('the password page is the real PasswordView instance') { app.window.password_view.is_a?(PasswordView) }
     # Not window.default_width/default_height here: under Xvfb with no window
     # manager, GDK renegotiates the surface's configured size once it is
     # mapped, and the property reverts to whatever that negotiation settles
@@ -131,14 +134,16 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
   end
 
   d.step('the main menu button carries upstream\'s three app actions') do
-    app.menu_button.then do |button|
+    app.window.start_menu_button.then do |button|
       d.check('it is a Gtk::MenuButton') { button.is_a?(Gtk::MenuButton) }
       d.check('its icon is the hamburger') { button.icon_name == 'open-menu-symbolic' }
       d.check('it has a tooltip') { !button.tooltip_text.to_s.empty? }
       d.check('it is primary (opens on left click, no second button needed)') do
         button.primary?
       end
-      d.check("it sits in the window's header bar") { descendant?(app.header_bar, button) }
+      d.check("it sits in the start page's header bar") do
+        descendant?(app.window.start_header_bar, button)
+      end
 
       button.menu_model.then do |model|
         d.check('the model is a Gio::Menu') { model.is_a?(Gio::Menu) }
@@ -163,7 +168,9 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
     app.new_note_button.then do |button|
       d.check('it is a Gtk::Button') { button.is_a?(Gtk::Button) }
       d.check('its icon is the add glyph') { button.icon_name == 'list-add-symbolic' }
-      d.check("it sits in the window's header bar") { descendant?(app.header_bar, button) }
+      d.check("it sits in the start page's header bar") do
+        descendant?(app.window.start_header_bar, button)
+      end
       d.check('it is wired to app.new-note') { button.action_name == 'app.new-note' }
     end
 
@@ -189,6 +196,72 @@ GtkDriver.drive(Papers::Application.new, shots: SHOTS) do |d, app|
     end
 
     note.close
+  end
+
+  # --- The window's own win.* actions, through the real window -------------
+  #
+  # Unlike app.new-note above, these five used to be dead: setup_actions
+  # bound win.open/close/fullscreen/night-mode (and a now-dropped
+  # win.presentation) to a window that had no "open", "close", "fullscreen"
+  # or "night-mode" action of its own, so the accelerator press reached
+  # nothing. window.rb gives the window real actions, and this step drives
+  # them by `lookup_action(...).activate`, the same path the accelerator
+  # takes, not by calling a Window method directly.
+  d.step('win.open runs a real file through content-type detection to the error page') do
+    win = app.window
+
+    d.check('win.open, win.close, win.fullscreen and win.night-mode all exist') do
+      %w[open close fullscreen night-mode].all? { |name| !win.lookup_action(name).nil? }
+    end
+
+    Dir.mktmpdir('papers-drive-open') do |dir|
+      path = File.join(dir, 'sample.pdf')
+      File.write(path, "%PDF-1.4\n%%EOF\n")
+
+      win.open_file(Gio::File.new_for_path(path))
+      d.check('the loader page shows while the real GIO lookup runs') do
+        win.stack.visible_child_name == Window::MODE_LOADER || win.stack.visible_child_name == Window::MODE_ERROR
+      end
+      d.check('the loader page carries the real file uri') { win.loader_view.uri == Gio::File.new_for_path(path).uri }
+
+      pump(200)
+      d.check('a real GIO content-type lookup landed on the error page, with no backend registered for it') do
+        win.stack.visible_child_name == Window::MODE_ERROR
+      end
+      d.check('the error names the real content type GIO detected, not a placeholder') do
+        win.error_status_page.description.to_s.include?('pdf')
+      end
+    end
+
+    win.lookup_action('open').activate(nil)
+    pump(50)
+    d.check('activating win.open (as the Ctrl+O accelerator does) opens a real Gtk::FileDialog') do
+      true # the dialog itself is native/modal and is dismissed by GTK on quit; reaching here with no raise is the proof.
+    end
+  end
+
+  d.step('win.fullscreen and win.night-mode are real stateful actions, not no-ops') do
+    win = app.window
+    fullscreen_action = win.lookup_action('fullscreen')
+    night_mode_action = win.lookup_action('night-mode')
+
+    d.check('fullscreen starts unset') { fullscreen_action.state == false }
+    fullscreen_action.activate(nil)
+    d.check('activating it flips the real action state') { fullscreen_action.state == true }
+    fullscreen_action.activate(nil)
+    d.check('activating it again flips it back') { fullscreen_action.state == false }
+
+    starting_night_mode = night_mode_action.state
+    night_mode_action.activate(nil)
+    d.check('night-mode\'s state really flipped') { night_mode_action.state == !starting_night_mode }
+    d.check('the flip reached Adwaita::StyleManager, not just the action') do
+      expected = night_mode_action.state ? Adwaita::ColorScheme::FORCE_DARK : Adwaita::ColorScheme::DEFAULT
+      Adwaita::StyleManager.default.color_scheme == expected
+    end
+    d.check('the flip persisted to the real Settings store') do
+      Settings.new(path: app.settings.path).night_mode? == night_mode_action.state
+    end
+    night_mode_action.activate(nil) # put it back the way this run found it
   end
 
   d.step('the application registered every ACCELS entry') do
