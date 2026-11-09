@@ -9,7 +9,7 @@
 source "https://rubygems.org"
 
 gem "adwaita"
-gem "gtk4"
 gem "glib2"
-gem "libspelling"
+gem "gtk4"
 gem "libsecret"
+gem "libspelling"

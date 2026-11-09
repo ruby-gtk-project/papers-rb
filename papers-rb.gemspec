@@ -96,6 +96,12 @@ Gem::Specification.new do |spec|
   spec.executables = ["papers"]
   spec.require_paths = ["lib"]
 
+  spec.add_dependency("adwaita", "~> 4.3")                                          # ruby >= 2.5
+  spec.add_dependency("glib2", "~> 4.3")                                            # ruby >= 2.5
+  spec.add_dependency("gtk4", "~> 4.3")                                             # ruby >= 2.5
+  spec.add_dependency("libsecret", "~> 4.4")                                          # ruby >= 2.5
+  spec.add_dependency("libspelling", "~> 1.0")                                      # ruby >= 3.0
+
   # NOTE: It is preferable to list development dependencies in the gemspec due to increased
   #       visibility and discoverability.
   #       However, development dependencies in gemspec will install on
@@ -108,24 +114,6 @@ Gem::Specification.new do |spec|
   #
   #       Development dependencies that require strictly newer Ruby versions should be in a "gemfile",
   #       and preferably a modular one (see gemfiles/modular/*.gemfile).
-
-  # Toolkit
-  spec.add_dependency("glib2", "~> 4.3")                                            # ruby >= 2.5
-  spec.add_dependency("gtk4", "~> 4.3")                                             # ruby >= 2.5
-  spec.add_dependency("adwaita", "~> 4.3")                                          # ruby >= 2.5
-  # Spell checking for text annotations and form fields (see
-  # lib/annotation_window.rb, called from Papers::Application#open_annotation_window).
-  spec.add_dependency("libspelling", "~> 1.0")                                      # ruby >= 3.0
-  # NOTE: libxmlb was removed from here. Upstream's own meson.build only
-  # resolves "xmlb" as build-aux/macos's transitive dependency of the
-  # `appstreamcli` build-time tool (validates data/*.metainfo.xml.in.in at
-  # build time); no upstream .c/.rs source references Xmlb/XbSilo at
-  # runtime (checked with `git grep -ni "xmlb\|xbsilo"` across the whole
-  # tree). There is no AppStream-querying feature in papers itself for a
-  # Ruby binding of that namespace to serve, so the dependency line was
-  # wrong and is gone rather than wired to a non-existent use.
-  # Keyring storage for document passwords (shell/src/keyring.rs)
-  spec.add_dependency("libsecret", "~> 4.4")                                          # ruby >= 2.5
 
   # Dev, Test, & Release Tasks
   spec.add_development_dependency("kettle-dev", "~> 3.1", ">= 3.1.26")             # ruby >= 3.4
